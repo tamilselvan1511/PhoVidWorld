@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 
 const services = [
   { name: 'Wedding Photography', description: 'The beginning of forever, told beautifully.', photo: 'photo-1537633552985-df8429e8048b' },
@@ -12,7 +12,7 @@ const services = [
 ];
 
 const storageKey = 'pb_bookings';
-const adminEmail = 'premierprism01@gmail.com';
+const studioEmail = 'premierprism01@gmail.com';
 const today = new Date().toISOString().slice(0, 10);
 const emptyForm = { customer: '', phone: '', service: '', date: '', time: 'Morning', location: '', notes: '' };
 
@@ -26,22 +26,9 @@ function readBookings() {
 }
 
 function App() {
-  const [page, setPage] = useState('home');
-  const [bookings, setBookings] = useState(readBookings);
   const [form, setForm] = useState(emptyForm);
   const [formMessage, setFormMessage] = useState('');
   const [latest, setLatest] = useState(null);
-  const [filter, setFilter] = useState('All');
-
-  const filteredBookings = useMemo(
-    () => bookings.filter((booking) => filter === 'All' || booking.status === filter),
-    [bookings, filter],
-  );
-
-  function navigate(nextPage) {
-    setPage(nextPage);
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-  }
 
   function chooseService(service) {
     setForm((current) => ({ ...current, service }));
@@ -69,22 +56,14 @@ function App() {
       status: 'Pending',
       created: new Date().toISOString(),
     };
-    const nextBookings = [booking, ...bookings];
-    setBookings(nextBookings);
     setLatest(booking);
     setForm(emptyForm);
     setFormMessage('');
     try {
-      localStorage.setItem(storageKey, JSON.stringify(nextBookings));
+      localStorage.setItem(storageKey, JSON.stringify([booking, ...readBookings()]));
     } catch {
       setFormMessage('Your browser could not save this request. Please try another browser.');
     }
-  }
-
-  function setStatus(id, status) {
-    const nextBookings = bookings.map((booking) => booking.id === id ? { ...booking, status } : booking);
-    setBookings(nextBookings);
-    try { localStorage.setItem(storageKey, JSON.stringify(nextBookings)); } catch { /* keep the current session usable */ }
   }
 
   function bookingSummary(booking) {
@@ -104,39 +83,22 @@ function App() {
   function emailAdmin() {
     if (!latest) return;
     const subject = `New Photography Booking - ${latest.service}`;
-    window.location.href = `mailto:${adminEmail}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(bookingSummary(latest))}`;
-  }
-
-  function textCustomer() {
-    if (!latest) return;
-    const number = latest.phone.replace(/[^0-9+]/g, '');
-    window.location.href = `sms:${number}?body=${encodeURIComponent(bookingSummary(latest))}`;
-  }
-
-  async function enableNotifications() {
-    if (!('Notification' in window)) {
-      window.alert('Browser notifications are not supported.');
-      return;
-    }
-    const permission = await Notification.requestPermission();
-    window.alert(permission === 'granted' ? 'Browser notifications enabled on this device.' : 'Notification permission was not granted.');
+    window.location.href = `mailto:${studioEmail}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(bookingSummary(latest))}`;
   }
 
   return (
     <>
       <header className="site-header">
-        <a className="brand" href="#home" onClick={(event) => { event.preventDefault(); navigate('home'); }} aria-label="Photography Booking home">
+        <a className="brand" href="#home" aria-label="Photography Booking home">
           <span className="brand-mark">✦</span> PHOTOGRAPHY <span>BOOKING</span>
         </a>
         <nav aria-label="Main navigation">
-          <button className="button secondary" onClick={() => navigate('home')}>Home</button>
-          <button className="button" onClick={() => navigate('admin')}>Admin</button>
+          <a className="nav-link" href="#servicesTitle">Services</a>
+          <a className="nav-link" href="#booking">Book a session</a>
         </nav>
       </header>
 
       <main>
-        {page === 'home' ? (
-          <>
             <section className="hero" id="home">
               <div className="hero-content">
                 <p className="eyebrow">A little magic in every frame</p>
@@ -154,6 +116,17 @@ function App() {
               <div><strong>Every detail matters</strong><span>Thoughtful storytelling</span></div>
               <div><strong>Made to remember</strong><span>Beautifully captured</span></div>
               <div><strong>Easy booking</strong><span>Personal assistance</span></div>
+            </section>
+
+            <section className="studio-story" aria-labelledby="storyTitle">
+              <div className="story-photo" role="img" aria-label="A couple sharing a quiet moment outdoors" />
+              <div className="story-copy">
+                <p className="eyebrow">More than a photograph</p>
+                <h2 id="storyTitle">For the moments<br />you’ll want to relive.</h2>
+                <p className="muted">The happy tears, the spontaneous laughter, the little details you almost missed. We capture your day as it felt, so every image brings you right back.</p>
+                <div className="story-signature"><span>OUR APPROACH</span><strong>Honest. Artful. Yours.</strong></div>
+                <a className="story-link" href="#booking">LET’S CREATE SOMETHING MEANINGFUL <span aria-hidden="true">↗</span></a>
+              </div>
             </section>
 
             <section className="services-section" aria-labelledby="servicesTitle">
@@ -186,22 +159,11 @@ function App() {
                 <div className="form-submit full-width"><button className="button" type="submit">Send booking request <span aria-hidden="true">↗</span></button><span className="form-message" role="status">{formMessage}</span></div>
               </form>
             </section>
-          </>
-        ) : (
-          <section className="admin-page">
-            <div className="admin-head"><div><p className="eyebrow">Studio workspace</p><h1>Admin dashboard</h1><p className="muted">Manage booking requests received on this browser.</p></div><button className="button" onClick={() => navigate('home')}>Back to website</button></div>
-            <div className="admin-stats"><div><span>Total requests</span><strong>{bookings.length}</strong></div><div><span>Pending</span><strong>{bookings.filter((booking) => booking.status === 'Pending').length}</strong></div><div><span>Accepted</span><strong>{bookings.filter((booking) => booking.status === 'Accepted').length}</strong></div></div>
-            <div className="tabs" role="tablist" aria-label="Filter bookings">{['All', 'Pending', 'Accepted', 'Rejected'].map((status) => <button key={status} role="tab" aria-selected={filter === status} className={filter === status ? 'active' : ''} onClick={() => setFilter(status)}>{status}</button>)}</div>
-            <div className="booking-list">{filteredBookings.length ? filteredBookings.map((booking) => <article className="booking-row" key={booking.id}><div className="booking-info"><div className="booking-name">{booking.customer}<span className={`status ${booking.status}`}>{booking.status}</span></div><p>{booking.service} <span>·</span> {booking.date} <span>·</span> {booking.time}</p><p className="muted">{booking.phone} <span>·</span> {booking.location}</p><p className="booking-id">Booking ID: {booking.id}</p>{booking.notes && <p className="muted">{booking.notes}</p>}</div>{booking.status === 'Pending' && <div className="booking-actions"><button className="button" onClick={() => setStatus(booking.id, 'Accepted')}>Accept</button><button className="button reject" onClick={() => setStatus(booking.id, 'Rejected')}>Reject</button></div>}</article>) : <div className="empty-state"><span>✦</span><h2>No bookings yet</h2><p className="muted">New requests will appear here when a customer books a session.</p></div>}</div>
-            <div className="notification-panel"><div><strong>Browser notifications</strong><p className="muted">Get an alert when a customer submits a booking on this device.</p></div><button className="button secondary-dark" onClick={enableNotifications}>Enable notifications</button></div>
-            <p className="demo-note">Bookings are stored in this browser only. Shared booking data, sign-in and automatic notifications need a connected backend.</p>
-          </section>
-        )}
       </main>
 
       <footer><strong>PHOTOGRAPHY BOOKING</strong><span>Capturing the moments that matter · © {new Date().getFullYear()}</span></footer>
 
-      {latest && <div className="modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setLatest(null); }}><section className="success-modal" role="dialog" aria-modal="true" aria-labelledby="successTitle"><div className="success-check">✓</div><p className="eyebrow">Request received</p><h2 id="successTitle">Thank you for booking!</h2><p className="muted">Your photography booking request has been saved. Our team will contact you to confirm availability.</p><div className="modal-details"><strong>Your photography session</strong><span><b>Name:</b> {latest.customer}</span><span><b>Service:</b> {latest.service}</span><span><b>Date:</b> {latest.date} · {latest.time}</span><span><b>Location:</b> {latest.location}</span><span><b>Booking ID:</b> {latest.id}</span></div><div className="modal-actions"><button className="button" onClick={emailAdmin}>Email admin</button><button className="button secondary-dark" onClick={textCustomer}>Customer SMS</button><button className="button secondary-dark" onClick={() => setLatest(null)}>Done</button></div><p className="modal-footnote">Email and SMS open your device app with the booking summary. You must press Send.</p></section></div>}
+      {latest && <div className="modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setLatest(null); }}><section className="success-modal" role="dialog" aria-modal="true" aria-labelledby="successTitle"><div className="success-check">✓</div><p className="eyebrow">Request received</p><h2 id="successTitle">Thank you for booking!</h2><p className="muted">Your photography booking request has been saved. Our team will contact you to confirm availability.</p><div className="modal-details"><strong>Your photography session</strong><span><b>Name:</b> {latest.customer}</span><span><b>Service:</b> {latest.service}</span><span><b>Date:</b> {latest.date} · {latest.time}</span><span><b>Location:</b> {latest.location}</span><span><b>Booking ID:</b> {latest.id}</span></div><div className="modal-actions"><button className="button" onClick={emailAdmin}>Email the studio</button><button className="button secondary-dark" onClick={() => setLatest(null)}>Done</button></div><p className="modal-footnote">Email opens your device app with the booking summary. You must press Send.</p></section></div>}
     </>
   );
 }
