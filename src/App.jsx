@@ -109,6 +109,18 @@ function App() {
                   <button className="button outline" onClick={() => document.getElementById('servicesTitle')?.scrollIntoView({ behavior: 'smooth' })}>Explore services</button>
                 </div>
               </div>
+              <div className="hero-camera" aria-hidden="true">
+                <div className="camera-glow" />
+                <div className="camera-art">
+                  <div className="camera-top"><i className="camera-viewfinder" /><i className="camera-dial" /><i className="camera-button" /></div>
+                  <div className="camera-body">
+                    <span className="camera-brand">STUDIO <b>01</b></span>
+                    <div className="camera-lens"><div className="lens-inner"><div className="lens-shutter" /></div></div>
+                    <span className="camera-light" />
+                  </div>
+                </div>
+                <span className="camera-spark">✦</span>
+              </div>
               <span className="hero-note">STORIES, HELD FOREVER</span>
             </section>
 
