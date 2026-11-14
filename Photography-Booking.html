@@ -1,0 +1,163 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Photography Booking | Timeless Stories</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Playfair+Display:wght@500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{--ink:#27211e;--gold:#c79b62;--cream:#faf7f2;--muted:#81776e;--line:#e9e1d8;--white:#fff;--forest:#263a33}
+*{box-sizing:border-box}html{scroll-behavior:smooth;scroll-padding-top:92px}body{margin:0;background:var(--cream);color:var(--ink);font-family:"DM Sans",Arial,sans-serif;-webkit-font-smoothing:antialiased}
+header{height:78px;padding:0 max(5vw,22px);display:flex;align-items:center;justify-content:space-between;background:#201d1a;color:white;position:sticky;top:0;z-index:10;border-bottom:1px solid #ffffff18;box-shadow:0 5px 24px #17151318}.brand{font-family:"Playfair Display",serif;font-size:20px;letter-spacing:1px}.brand span{color:var(--gold)}nav{display:flex;align-items:center;gap:10px}
+button,.btn{border:0;border-radius:3px;padding:14px 20px;background:var(--gold);color:#211a14;font-weight:700;cursor:pointer;font:600 12px "DM Sans";letter-spacing:.7px;transition:transform .2s,background .2s,box-shadow .2s}button:hover,.btn:hover{transform:translateY(-2px);box-shadow:0 7px 20px #20191325;background:#d5ad78}button.secondary{background:transparent;color:white;border:1px solid #ffffff55;box-shadow:none}button:focus-visible{outline:3px solid #c79b6290;outline-offset:3px}
+main{max-width:1320px;margin:auto;padding:24px 30px 72px}.hero{min-height:590px;border-radius:3px;overflow:hidden;position:relative;display:flex;align-items:center;padding:clamp(35px,8vw,110px);color:white;background:linear-gradient(90deg,rgba(22,19,17,.86) 0%,rgba(22,19,17,.58) 43%,rgba(22,19,17,.08) 100%),url('https://images.unsplash.com/photo-1519741497674-611481863552?auto=format&fit=crop&w=1900&q=85') center 45%/cover;box-shadow:0 22px 60px #37291d18}
+.hero-content{max-width:610px}.eyebrow{color:#aa8050;letter-spacing:3px;font-size:10px;font-weight:700;text-transform:uppercase}.hero .eyebrow{color:#e7c99f}.hero h1{font:600 clamp(48px,7vw,82px)/1.03 "Playfair Display",serif;margin:20px 0}.hero p{font-size:16px;line-height:1.85;color:#f0ebe5;max-width:490px;margin:0 0 30px}.hero .outline{margin-left:10px;background:transparent;border:1px solid #ffffff8c;color:white;box-shadow:none}
+.trust{display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:var(--line);margin:22px 0 86px;border:1px solid var(--line)}.trust div{background:#fff;padding:24px;text-align:center}.trust strong{display:block;font:600 20px "Playfair Display"}.trust span{font-size:10px;color:var(--muted);letter-spacing:1.5px;text-transform:uppercase;display:block;margin-top:6px}
+.section-head{display:flex;justify-content:space-between;align-items:end;gap:20px;margin-bottom:28px}.section-head h2,.panel h2{font:600 clamp(32px,4vw,46px) "Playfair Display";margin:9px 0}.muted{color:var(--muted);line-height:1.75}.services{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:18px}
+.service{background:white;border:1px solid var(--line);border-radius:3px;overflow:hidden;transition:.25s}.service:hover{transform:translateY(-5px);box-shadow:0 18px 38px #32241618}.service-photo{height:210px;background-size:cover;background-position:center;position:relative;transition:background-size .3s}.service-photo:after{content:"";position:absolute;inset:45% 0 0;background:linear-gradient(0deg,#17151335,transparent)}.service-body{padding:20px}.service h3{font:600 21px "Playfair Display";margin:0 0 8px}.service p{font-size:12px;color:var(--muted);line-height:1.7;min-height:40px;margin:0 0 16px}.service button{background:transparent;color:#8d6938;padding:0 0 5px;border-bottom:1px solid var(--gold);border-radius:0;letter-spacing:.5px;box-shadow:none}
+.panel{background:#fff;border:1px solid var(--line);border-radius:3px;padding:clamp(25px,5vw,56px);margin:86px 0;box-shadow:0 16px 45px #3327190a}.booking-intro{max-width:640px;margin-bottom:32px}.formgrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:21px}label{font-size:10px;font-weight:700;letter-spacing:1px;display:block;margin-bottom:9px;color:#51483f}input,select,textarea{width:100%;padding:15px 14px;border:1px solid #ded6ca;border-radius:2px;background:#fdfcfb;font:14px "DM Sans";color:var(--ink);transition:border .2s,box-shadow .2s}input:focus,select:focus,textarea:focus{outline:0;border-color:var(--gold);box-shadow:0 0 0 3px #c6a36b25}textarea{min-height:115px;resize:vertical}.full{grid-column:1/-1}.hidden{display:none}.form-actions{display:flex;align-items:center;gap:15px;flex-wrap:wrap}.small{font-size:12px;color:var(--muted)}#formMsg{color:#39734c}
+.modal-backdrop{position:fixed;inset:0;background:#120f0dcc;display:none;align-items:center;justify-content:center;padding:20px;z-index:30}.modal-backdrop.show{display:flex}.modal{width:min(460px,100%);background:#fff;border-radius:4px;padding:34px;text-align:center;box-shadow:0 25px 80px #0005}.modal .check{width:58px;height:58px;border-radius:50%;display:grid;place-items:center;background:#e4f5e9;color:#287b43;font-size:30px;margin:0 auto 15px}.modal h2{font:600 30px 'Playfair Display';margin:8px 0}.modal p{color:var(--muted);line-height:1.7;font-size:13px}.modal-details{text-align:left;background:#f8f5ef;border-radius:3px;padding:15px;margin:18px 0;font-size:12px;line-height:1.9}.modal button{min-width:130px}
+.admin-head{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:15px}.tabs{display:flex;gap:8px;flex-wrap:wrap;margin:24px 0}.tabs button{background:#eee8df;color:#4b433b}.tabs button.active{background:#211c1a;color:white}.booking{border:1px solid var(--line);border-radius:3px;padding:20px;margin:11px 0;display:flex;justify-content:space-between;gap:15px;flex-wrap:wrap;background:white}.status{font-size:10px;border-radius:30px;padding:5px 10px;background:#eee;margin-left:8px}.status.Pending{background:#fff0cf}.status.Accepted{background:#dff5e6}.status.Rejected{background:#ffe1e1}
+footer{background:#201d1a;color:#c9c0b5;text-align:center;padding:42px 20px;font-size:10px;letter-spacing:1.4px}footer strong{font:21px "Playfair Display";letter-spacing:.8px;color:white;display:block;margin-bottom:9px}
+@media(max-width:900px){.services{grid-template-columns:repeat(2,minmax(0,1fr))}.hero{min-height:500px}}@media(max-width:560px){header{height:68px}.brand{font-size:15px}nav{gap:6px}nav button{padding:10px 11px;font-size:10px}main{padding:14px 14px 46px}.hero{min-height:520px;padding:30px 24px;background-position:60% center}.hero h1{font-size:49px}.hero p{font-size:14px}.hero .outline{margin:10px 0 0}.trust{grid-template-columns:1fr;margin-bottom:58px}.trust div{padding:15px}.services{grid-template-columns:1fr 1fr;gap:10px}.service-photo{height:135px}.service-body{padding:13px}.service h3{font-size:16px}.service p{font-size:11px;min-height:60px}.formgrid{grid-template-columns:1fr}.full{grid-column:auto}.panel{margin:56px 0;padding:22px}.modal{padding:25px 18px}}
+.hero-content{max-width:610px}.eyebrow{color:var(--gold);letter-spacing:3px;font-size:11px;font-weight:700;text-transform:uppercase}.hero h1{font:600 clamp(44px,7vw,78px)/1.04 "Playfair Display",serif;margin:18px 0}.hero p{font-size:16px;line-height:1.8;color:#eee8df;max-width:490px;margin:0 0 28px}.hero .outline{margin-left:10px;background:transparent;border:1px solid #ffffff8c;color:white}
+.trust{display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:var(--line);margin:18px 0 65px;border:1px solid var(--line)}.trust div{background:#fff;padding:19px;text-align:center}.trust strong{display:block;font:600 20px "Playfair Display"}.trust span{font-size:11px;color:var(--muted);letter-spacing:1px;text-transform:uppercase}
+.section-head{display:flex;justify-content:space-between;align-items:end;gap:20px;margin-bottom:24px}.section-head h2,.panel h2{font:600 clamp(30px,4vw,42px) "Playfair Display";margin:8px 0}.muted{color:var(--muted);line-height:1.7}.services{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:17px}
+.service{background:white;border:1px solid var(--line);border-radius:6px;overflow:hidden;transition:.25s}.service:hover{transform:translateY(-5px);box-shadow:0 15px 35px #32241616}.service-photo{height:190px;background-size:cover;background-position:center;position:relative}.service-photo:after{content:"";position:absolute;inset:0;background:linear-gradient(0deg,#17151355,transparent 55%)}.service-body{padding:18px}.service h3{font:600 20px "Playfair Display";margin:0 0 8px}.service p{font-size:12px;color:var(--muted);line-height:1.6;min-height:39px;margin:0 0 15px}.service button{background:transparent;color:#8d6938;padding:0;border-bottom:1px solid var(--gold);border-radius:0}
+.panel{background:#fff;border:1px solid var(--line);border-radius:7px;padding:clamp(22px,4vw,44px);margin:70px 0}.booking-intro{max-width:640px;margin-bottom:25px}.formgrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px}label{font-size:12px;font-weight:700;display:block;margin-bottom:8px;color:#4b433b}input,select,textarea{width:100%;padding:14px;border:1px solid #ded6ca;border-radius:4px;background:#fff;font:14px "DM Sans";color:var(--ink)}input:focus,select:focus,textarea:focus{outline:2px solid #c6a36b55;border-color:var(--gold)}textarea{min-height:105px;resize:vertical}.full{grid-column:1/-1}.hidden{display:none}.form-actions{display:flex;align-items:center;gap:15px;flex-wrap:wrap}.small{font-size:12px;color:var(--muted)}#formMsg{color:#39734c}
+.modal-backdrop{position:fixed;inset:0;background:#120f0dcc;display:none;align-items:center;justify-content:center;padding:20px;z-index:30}.modal-backdrop.show{display:flex}.modal{width:min(460px,100%);background:#fff;border-radius:9px;padding:30px;text-align:center;box-shadow:0 25px 80px #0005}.modal .check{width:58px;height:58px;border-radius:50%;display:grid;place-items:center;background:#e4f5e9;color:#287b43;font-size:30px;margin:0 auto 15px}.modal h2{font:600 30px 'Playfair Display';margin:8px 0}.modal p{color:var(--muted);line-height:1.6;font-size:14px}.modal-details{text-align:left;background:#f8f5ef;border-radius:6px;padding:13px 15px;margin:18px 0;font-size:13px;line-height:1.8}.modal button{min-width:130px}
+.admin-head{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:15px}.tabs{display:flex;gap:8px;flex-wrap:wrap;margin:24px 0}.tabs button{background:#eee8df;color:#4b433b}.tabs button.active{background:#211c1a;color:white}.booking{border:1px solid var(--line);border-radius:6px;padding:18px;margin:11px 0;display:flex;justify-content:space-between;gap:15px;flex-wrap:wrap;background:white}.status{font-size:11px;border-radius:30px;padding:5px 10px;background:#eee;margin-left:8px}.status.Pending{background:#fff0cf}.status.Accepted{background:#dff5e6}.status.Rejected{background:#ffe1e1}
+footer{background:#171513;color:#c9c0b5;text-align:center;padding:34px 20px;font-size:12px;letter-spacing:.5px}footer strong{font:20px "Playfair Display";color:white;display:block;margin-bottom:8px}
+@media(max-width:900px){.services{grid-template-columns:repeat(2,minmax(0,1fr))}.hero{min-height:460px}}@media(max-width:560px){header{height:68px}.brand{font-size:17px}nav{gap:6px}nav button{padding:10px 12px}.hero{min-height:500px;padding:30px 24px;background-position:58% center}.hero h1{font-size:49px}.trust{grid-template-columns:1fr}.trust div{padding:14px}.services{grid-template-columns:1fr 1fr;gap:10px}.service-photo{height:130px}.service-body{padding:12px}.service h3{font-size:16px}.service p{font-size:11px;min-height:54px}.formgrid{grid-template-columns:1fr}.full{grid-column:auto}.panel{margin:48px 0;padding:22px}}
+
+.modal-actions{display:flex;gap:9px;justify-content:center;flex-wrap:wrap;margin-top:16px}
+.modal-actions button{font-size:11px;padding:12px 14px}
+/* Final polish overrides for the original booking components. */
+header{box-shadow:0 5px 24px #17151318}main{max-width:1320px;padding:24px 30px 72px}.hero{min-height:590px;border-radius:3px;padding:clamp(35px,8vw,110px);box-shadow:0 22px 60px #37291d18}.hero .eyebrow{color:#e7c99f}.trust{margin:22px 0 86px}.trust span{display:block;margin-top:6px}.section-head h2,.panel h2{font-size:clamp(32px,4vw,46px)}.services{gap:18px}.service{border-radius:3px}.service-photo{height:210px}.service-body{padding:20px}.service h3{font-size:21px}.service p{line-height:1.7}.panel{border-radius:3px;padding:clamp(25px,5vw,56px);margin:86px 0;box-shadow:0 16px 45px #3327190a}.formgrid{gap:21px}label{font-size:10px;letter-spacing:1px}input,select,textarea{padding:15px 14px;border-radius:2px;background:#fdfcfb}input:focus,select:focus,textarea:focus{outline:0;border-color:var(--gold);box-shadow:0 0 0 3px #c6a36b25}footer{padding:42px 20px;font-size:10px;letter-spacing:1.4px}
+@media(max-width:900px){.hero{min-height:500px}.services{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:560px){main{padding:14px 14px 46px}.hero{min-height:520px;padding:30px 24px;background-position:60% center}.hero p{font-size:14px}.hero .outline{margin:10px 0 0}.trust{margin-bottom:58px}.trust div{padding:15px}.services{gap:10px}.service-photo{height:135px}.service-body{padding:13px}.service h3{font-size:16px}.service p{font-size:11px;min-height:60px}.panel{margin:56px 0;padding:22px}.modal{padding:25px 18px}}
+</style></head>
+<body>
+<header><div class="brand">✦ PHOTOGRAPHY <span>BOOKING</span></div><nav><button class="secondary" onclick="showPage('home')">Home</button><button onclick="showPage('admin')">Admin</button></nav></header>
+<main>
+<section id="home">
+<div class="hero"><div class="hero-content"><div class="eyebrow">A little magic in every frame</div><h1>Your moments.<br>Our masterpiece.</h1><p>From intimate celebrations to once-in-a-lifetime weddings, let us turn your moments into memories that last forever.</p><button onclick="document.getElementById('booking').scrollIntoView({behavior:'smooth'})">BOOK YOUR PHOTOGRAPHER&nbsp; ↗</button><button class="outline" onclick="document.getElementById('servicesTitle').scrollIntoView({behavior:'smooth'})">EXPLORE SERVICES</button></div></div>
+<div class="trust"><div><strong>Every detail matters</strong><span>Thoughtful storytelling</span></div><div><strong>Made to remember</strong><span>Beautifully captured</span></div><div><strong>Easy booking</strong><span>Personal assistance</span></div></div>
+<div class="section-head" id="servicesTitle"><div><div class="eyebrow">What we capture</div><h2>Photography for every story</h2><p class="muted">Choose the perfect photoshoot for your special occasion.</p></div></div>
+<div class="services" id="services"></div>
+<section class="panel" id="booking"><div class="booking-intro"><div class="eyebrow">Let's make it memorable</div><h2>Book your session</h2><p class="muted">Share a few details and our team will contact you to discuss availability. No online payment required.</p></div>
+<form id="bookingForm" class="formgrid" novalidate>
+<div><label for="customer">YOUR NAME *</label><input id="customer" required maxlength="80" placeholder="Enter your full name"></div>
+<div><label for="phone">MOBILE NUMBER *</label><input id="phone" required inputmode="tel" pattern="[0-9+() -]{8,20}" placeholder="Enter your mobile number"></div>
+<div><label for="service">PHOTOGRAPHY SERVICE *</label><select id="service" required></select></div>
+<div><label for="date">PREFERRED DATE *</label><input id="date" type="date" required></div>
+<div><label for="time">PREFERRED TIME</label><select id="time"><option>Morning</option><option>Afternoon</option><option>Evening</option></select></div>
+<div><label for="location">EVENT LOCATION *</label><input id="location" required placeholder="Area / venue name"></div>
+<div class="full"><label for="notes">TELL US MORE</label><textarea id="notes" placeholder="Event details, special requests... (optional)"></textarea></div>
+<div class="full form-actions"><button type="submit">SEND BOOKING REQUEST&nbsp; ↗</button><span id="formMsg" class="small" role="status"></span></div>
+</form></section></section>
+<section id="admin" class="hidden"><div class="admin-head"><div><div class="eyebrow">Studio workspace</div><h1 style="font:600 42px 'Playfair Display'">Admin Dashboard</h1><p class="muted">Manage booking requests received on this browser.</p></div><button onclick="showPage('home')">Back to website</button></div><div class="tabs"><button class="active" onclick="filterBookings('All',this)">All</button><button onclick="filterBookings('Pending',this)">Pending</button><button onclick="filterBookings('Accepted',this)">Accepted</button><button onclick="filterBookings('Rejected',this)">Rejected</button></div><div id="bookingList"></div><button class="secondary" style="background:#211c1a" onclick="enableNotifications()">Enable browser notifications</button><p class="small">Demo only: bookings are stored in this browser. Real phone push notifications require a connected backend and Firebase Cloud Messaging.</p></section>
+</main>
+<div class="modal-backdrop" id="successModal" role="dialog" aria-modal="true" aria-labelledby="successTitle"><div class="modal"><div class="check">✓</div><div class="eyebrow">Request received</div><h2 id="successTitle">Thank you for booking!</h2><p>Your photography booking request has been saved. Our team will contact you to confirm availability.</p><div class="modal-details" id="modalDetails"></div>
+<div class="modal-actions">
+<button type="button" onclick="sendAdminEmail()">EMAIL ADMIN</button>
+<button type="button" class="secondary" style="background:#211c1a" onclick="sendCustomerSMS()">CUSTOMER SMS</button>
+<button type="button" class="secondary" style="background:#211c1a" onclick="closeSuccessModal()">DONE</button>
+</div>
+<p class="small">Email and SMS buttons open your device's mail/SMS app with the booking summary filled in. You must press Send. Automatic delivery needs a connected backend.</p></div></div>
+<footer><strong>PHOTOGRAPHY BOOKING</strong>CAPTURING THE MOMENTS THAT MATTER · © <span id="year"></span></footer>
+<script>
+const services=['Wedding Photography','Birthday Photography','Engagement Photography','Baby Photography','Events Photography','Pre-Wedding Photography','Candid Photography','Outdoor Photoshoot'];
+const descriptions=['The beginning of forever, told beautifully.','Joyful celebrations filled with colour and laughter.','The promise of a beautiful journey together.','Tiny details and precious first memories.','Every highlight, guest and meaningful moment.','Romantic frames before your big day.','Real emotions, genuine smiles, natural moments.','Golden light, open skies and beautiful portraits.'];
+const photos=['photo-1537633552985-df8429e8048b','photo-1513151233558-d860c5398176','photo-1523438885200-e635ba2c371e','photo-1519689680058-324335c77eba','photo-1511795409834-ef04bbd61622','photo-1511285560929-80b456fea0bc','photo-1519741497674-611481863552','photo-1470252649378-9c29740c9fa8'];
+const $=id=>document.getElementById(id);let currentFilter='All';
+$('services').innerHTML=services.map((s,i)=>`<article class="service"><div class="service-photo" style="background-image:url('https://images.unsplash.com/${photos[i]}?auto=format&fit=crop&w=700&q=80')"></div><div class="service-body"><h3>${s}</h3><p>${descriptions[i]}</p><button onclick="selectService('${s.replaceAll("'","\\'")}')">BOOK THIS SERVICE&nbsp; ↗</button></div></article>`).join('');
+$('service').innerHTML='<option value="">Choose a service</option>'+services.map(s=>`<option>${s}</option>`).join('');$('year').textContent=new Date().getFullYear();$('date').min=new Date().toISOString().slice(0,10);
+function selectService(s){$('service').value=s;$('booking').scrollIntoView({behavior:'smooth'});}
+let memoryBookings = [];
+function getBookings(){
+ try {
+  const stored = localStorage.getItem('pb_bookings');
+  return stored ? JSON.parse(stored) : memoryBookings;
+ } catch (err) {
+  return memoryBookings;
+ }
+}
+function saveBookings(b){
+ memoryBookings = b;
+ try { localStorage.setItem('pb_bookings', JSON.stringify(b)); }
+ catch (err) { console.warn('Browser storage unavailable; booking kept for this page session.', err); }
+}
+let latestBooking = null;
+const ADMIN_EMAIL = 'premierprism01@gmail.com';
+function bookingSummary(item){
+ return [
+  'YOUR PHOTOGRAPHY SESSION',
+  'NAME: ' + item.customer,
+  'MOB.NO: ' + item.phone,
+  'SERVICE: ' + item.service,
+  'DATE: ' + item.date,
+  'TIME: ' + item.time,
+  'LOCATION: ' + item.location,
+  'TELL US MORE: ' + (item.notes || 'Not provided'),
+  'BOOKING ID: ' + item.id
+ ].join('\n');
+}
+function sendAdminEmail(){
+ if(!latestBooking)return;
+ const subject='New Photography Booking - '+latestBooking.service;
+ const body=bookingSummary(latestBooking);
+ window.location.href='mailto:'+ADMIN_EMAIL+'?subject='+encodeURIComponent(subject)+'&body='+encodeURIComponent(body);
+}
+function sendCustomerSMS(){
+ if(!latestBooking)return;
+ const body=bookingSummary(latestBooking);
+ const number=latestBooking.phone.replace(/[^0-9+]/g,'');
+ window.location.href='sms:'+number+'?body='+encodeURIComponent(body);
+}
+$('bookingForm').addEventListener('submit',e=>{
+ e.preventDefault();
+ const requiredFields = [
+  ['customer', 'Please enter your name.'],
+  ['phone', 'Please enter your mobile number.'],
+  ['service', 'Please choose a photography service.'],
+  ['date', 'Please select a booking date.'],
+  ['location', 'Please enter the event location.']
+ ];
+ for (const [field, message] of requiredFields) {
+  if (!$ (field).value.trim()) {
+   $('formMsg').textContent = message;
+   $(field).focus();
+   return;
+  }
+ }
+ const phoneDigits = $('phone').value.replace(/[^0-9]/g, '');
+ if (phoneDigits.length < 8 || phoneDigits.length > 15) {
+  $('formMsg').textContent = 'Please enter a valid mobile number (8–15 digits).';
+  $('phone').focus();
+  return;
+ }
+ if ($('date').value < new Date().toISOString().slice(0,10)) {
+  $('formMsg').textContent = 'Please choose today or a future date.';
+  $('date').focus();
+  return;
+ }
+ $('formMsg').textContent = 'Submitting your booking request...';
+ const b=getBookings();
+ const item={id:'PB-'+Date.now().toString().slice(-7),customer:$('customer').value.trim(),phone:$('phone').value.trim(),service:$('service').value,date:$('date').value,time:$('time').value,location:$('location').value.trim(),notes:$('notes').value.trim(),status:'Pending',created:new Date().toISOString()};
+ latestBooking=item;
+ b.unshift(item);
+ saveBookings(b);
+ $('modalDetails').innerHTML='<strong>YOUR PHOTOGRAPHY SESSION</strong><br><strong>NAME:</strong> '+escapeHtml(item.customer)+'<br><strong>MOB.NO:</strong> '+escapeHtml(item.phone)+'<br><strong>SERVICE:</strong> '+escapeHtml(item.service)+'<br><strong>DATE:</strong> '+escapeHtml(item.date)+'<br><strong>TIME:</strong> '+escapeHtml(item.time)+'<br><strong>LOCATION:</strong> '+escapeHtml(item.location)+'<br><strong>TELL US MORE:</strong> '+escapeHtml(item.notes||'Not provided');
+ $('successModal').classList.add('show');$('bookingForm').reset();$('formMsg').textContent='';
+ if('Notification'in window && Notification.permission==='granted'){new Notification('New Photography Booking',{body:item.customer+' · '+item.service+' · '+item.date});}
+});
+function closeSuccessModal(){$('successModal').classList.remove('show')}
+$('successModal').addEventListener('click',e=>{if(e.target===$('successModal'))closeSuccessModal()});
+function showPage(p){$('home').classList.toggle('hidden',p!=='home');$('admin').classList.toggle('hidden',p!=='admin');if(p==='admin')renderBookings();window.scrollTo(0,0)}
+function filterBookings(f,el){currentFilter=f;document.querySelectorAll('.tabs button').forEach(x=>x.classList.remove('active'));el.classList.add('active');renderBookings()}
+function renderBookings(){const list=getBookings().filter(b=>currentFilter==='All'||b.status===currentFilter);$('bookingList').innerHTML=list.length?list.map(b=>`<article class="booking"><div><strong>${escapeHtml(b.customer)}</strong> <span class="status ${b.status}">${b.status}</span><div>${escapeHtml(b.service)} · ${escapeHtml(b.date)} · ${escapeHtml(b.time)}</div><div class="small">${escapeHtml(b.phone)} · ${escapeHtml(b.location)}</div><div class="small">Booking ID: ${b.id}</div>${b.notes?`<p class="small">${escapeHtml(b.notes)}</p>`:''}</div><div>${b.status==='Pending'?`<button onclick="updateStatus('${b.id}','Accepted')">Accept</button> <button class="secondary" style="background:#211c1a" onclick="updateStatus('${b.id}','Rejected')">Reject</button>`:''}</div></article>`).join(''):'<p class="muted">No bookings found.</p>'}
+function updateStatus(id,status){saveBookings(getBookings().map(b=>b.id===id?{...b,status}:b));renderBookings()}
+function escapeHtml(s){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
+async function enableNotifications(){if(!('Notification'in window)){alert('Browser notifications are not supported.');return}const p=await Notification.requestPermission();alert(p==='granted'?'Browser notifications enabled on this device.':'Notification permission was not granted.')}
+</script></body></html>
