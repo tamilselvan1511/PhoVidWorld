@@ -12,9 +12,8 @@ const services = [
 ];
 
 const storageKey = 'pb_bookings';
-const studioEmail = 'premierprism01@gmail.com';
 const today = new Date().toISOString().slice(0, 10);
-const emptyForm = { customer: '', phone: '', service: '', date: '', time: 'Morning', location: '', notes: '' };
+const emptyForm = { customer: '', email: '', phone: '', service: '', date: '', time: 'Morning', location: '', notes: '' };
 
 function readBookings() {
   try {
@@ -29,6 +28,7 @@ function App() {
   const [form, setForm] = useState(emptyForm);
   const [formMessage, setFormMessage] = useState('');
   const [latest, setLatest] = useState(null);
+  const [submitting, setSubmitting] = useState(false);
 
   function chooseService(service) {
     setForm((current) => ({ ...current, service }));
@@ -39,8 +39,9 @@ function App() {
     setForm((current) => ({ ...current, [event.target.name]: event.target.value }));
   }
 
-  function submitBooking(event) {
+  async function submitBooking(event) {
     event.preventDefault();
+    setFormMessage('');
     const digits = form.phone.replace(/\D/g, '');
     if (digits.length < 8 || digits.length > 15) {
       setFormMessage('Please enter a valid mobile number (8–15 digits).');
@@ -50,40 +51,24 @@ function App() {
       setFormMessage('Please choose today or a future date.');
       return;
     }
-    const booking = {
-      ...form,
-      id: `PB-${Date.now().toString().slice(-7)}`,
-      status: 'Pending',
-      created: new Date().toISOString(),
-    };
-    setLatest(booking);
-    setForm(emptyForm);
-    setFormMessage('');
+    setSubmitting(true);
     try {
-      localStorage.setItem(storageKey, JSON.stringify([booking, ...readBookings()]));
+      const response = await fetch('/api/bookings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(form),
+      });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(result.error || 'We could not send your booking emails. Please try again.');
+      const booking = { ...form, id: result.bookingId, status: 'Pending', created: new Date().toISOString() };
+      setLatest(booking);
+      try { localStorage.setItem(storageKey, JSON.stringify([booking, ...readBookings()])); } catch { /* email delivery should still succeed without browser storage */ }
+      setForm(emptyForm);
     } catch {
-      setFormMessage('Your browser could not save this request. Please try another browser.');
+      setFormMessage('Your request could not be emailed. Please try again in a moment or contact the studio directly.');
+    } finally {
+      setSubmitting(false);
     }
-  }
-
-  function bookingSummary(booking) {
-    return [
-      'YOUR PHOTOGRAPHY SESSION',
-      `NAME: ${booking.customer}`,
-      `MOB.NO: ${booking.phone}`,
-      `SERVICE: ${booking.service}`,
-      `DATE: ${booking.date}`,
-      `TIME: ${booking.time}`,
-      `LOCATION: ${booking.location}`,
-      `TELL US MORE: ${booking.notes || 'Not provided'}`,
-      `BOOKING ID: ${booking.id}`,
-    ].join('\n');
-  }
-
-  function emailAdmin() {
-    if (!latest) return;
-    const subject = `New Photography Booking - ${latest.service}`;
-    window.location.href = `mailto:${studioEmail}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(bookingSummary(latest))}`;
   }
 
   return (
@@ -159,23 +144,24 @@ function App() {
             </section>
 
             <section className="booking-panel" id="booking">
-              <div className="booking-intro"><p className="eyebrow">Let’s make it memorable</p><h2>Book your session</h2><p className="muted">Share a few details and our team will contact you to discuss availability. No online payment required.</p></div>
+              <div className="booking-intro"><p className="eyebrow">Let’s make it memorable</p><h2>Book your session</h2><p className="muted">Share a few details and we’ll email the booking summary to you and our studio. No online payment required.</p></div>
               <form className="booking-form" onSubmit={submitBooking}>
                 <div className="field"><label htmlFor="customer">Your name <span>*</span></label><input id="customer" name="customer" required maxLength="80" placeholder="Enter your full name" value={form.customer} onChange={updateForm} /></div>
-                <div className="field"><label htmlFor="phone">Mobile number <span>*</span></label><input id="phone" name="phone" type="tel" inputMode="tel" required placeholder="Enter your mobile number" value={form.phone} onChange={updateForm} /></div>
+                <div className="field"><label htmlFor="email">Email address <span>*</span></label><input id="email" name="email" type="email" autoComplete="email" required maxLength="254" placeholder="you@example.com" value={form.email} onChange={updateForm} /></div>
+                <div className="field"><label htmlFor="phone">Mobile number <span>*</span></label><input id="phone" name="phone" type="tel" inputMode="tel" autoComplete="tel" required placeholder="Enter your mobile number" value={form.phone} onChange={updateForm} /></div>
                 <div className="field"><label htmlFor="service">Photography service <span>*</span></label><select id="service" name="service" required value={form.service} onChange={updateForm}><option value="">Choose a service</option>{services.map((service) => <option key={service.name}>{service.name}</option>)}</select></div>
                 <div className="field"><label htmlFor="date">Preferred date <span>*</span></label><input id="date" name="date" type="date" min={today} required value={form.date} onChange={updateForm} /></div>
                 <div className="field"><label htmlFor="time">Preferred time</label><select id="time" name="time" value={form.time} onChange={updateForm}><option>Morning</option><option>Afternoon</option><option>Evening</option></select></div>
                 <div className="field"><label htmlFor="location">Event location <span>*</span></label><input id="location" name="location" required placeholder="Area / venue name" value={form.location} onChange={updateForm} /></div>
                 <div className="field full-width"><label htmlFor="notes">Tell us more</label><textarea id="notes" name="notes" placeholder="Event details, special requests... (optional)" value={form.notes} onChange={updateForm} /></div>
-                <div className="form-submit full-width"><button className="button" type="submit">Send booking request <span aria-hidden="true">↗</span></button><span className="form-message" role="status">{formMessage}</span></div>
+                <div className="form-submit full-width"><button className="button" type="submit" disabled={submitting}>{submitting ? 'Sending…' : 'Send booking request'} <span aria-hidden="true">↗</span></button><span className="form-message" role="status">{formMessage}</span></div>
               </form>
             </section>
       </main>
 
       <footer><strong>PHOTOGRAPHY BOOKING</strong><span>Capturing the moments that matter · © {new Date().getFullYear()}</span></footer>
 
-      {latest && <div className="modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setLatest(null); }}><section className="success-modal" role="dialog" aria-modal="true" aria-labelledby="successTitle"><div className="success-check">✓</div><p className="eyebrow">Request received</p><h2 id="successTitle">Thank you for booking!</h2><p className="muted">Your photography booking request has been saved. Our team will contact you to confirm availability.</p><div className="modal-details"><strong>Your photography session</strong><span><b>Name:</b> {latest.customer}</span><span><b>Service:</b> {latest.service}</span><span><b>Date:</b> {latest.date} · {latest.time}</span><span><b>Location:</b> {latest.location}</span><span><b>Booking ID:</b> {latest.id}</span></div><div className="modal-actions"><button className="button" onClick={emailAdmin}>Email the studio</button><button className="button secondary-dark" onClick={() => setLatest(null)}>Done</button></div><p className="modal-footnote">Email opens your device app with the booking summary. You must press Send.</p></section></div>}
+      {latest && <div className="modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setLatest(null); }}><section className="success-modal" role="dialog" aria-modal="true" aria-labelledby="successTitle"><div className="success-check">✓</div><p className="eyebrow">Request received</p><h2 id="successTitle">Thank you for booking!</h2><p className="muted">Your booking summary has been emailed to you and our studio. We’ll contact you to confirm availability.</p><div className="modal-details"><strong>Your photography session</strong><span><b>Name:</b> {latest.customer}</span><span><b>Email:</b> {latest.email}</span><span><b>Service:</b> {latest.service}</span><span><b>Date:</b> {latest.date} · {latest.time}</span><span><b>Location:</b> {latest.location}</span><span><b>Booking ID:</b> {latest.id}</span></div><div className="modal-actions"><button className="button secondary-dark" onClick={() => setLatest(null)}>Done</button></div></section></div>}
     </>
   );
 }
