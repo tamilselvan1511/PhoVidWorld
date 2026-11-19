@@ -239,7 +239,13 @@ const server = createServer(async (request, response) => {
     const validationMessage = validateBooking(body);
     if (validationMessage) return respond(response, 400, { error: validationMessage });
     const booking = { customer: body.customer.trim(), email: body.email.trim(), phone: body.phone.trim(), service: body.service, date: body.date, time: body.time, location: body.location.trim(), notes: (body.notes || '').trim(), id: `PB-${Date.now().toString().slice(-7)}`, status: 'Pending', createdAt: new Date().toISOString() };
-    const storageUri = await storeBooking(booking);
+    let storageUri;
+    try {
+      storageUri = await storeBooking(booking);
+    } catch (error) {
+      console.error('Booking S3 save failed.', error.message);
+      return respond(response, 502, { error: 'Booking could not be saved to S3. Check the bucket name, bucket region, and s3:PutObject permission.' });
+    }
     if (SEND_BOOKING_EMAILS) {
       const summary = ['YOUR PHOTOGRAPHY SESSION', ...summaryLines(booking).map(([label, value]) => `${label.toUpperCase()}: ${value}`)].join('\n');
       const deliveries = await Promise.allSettled([

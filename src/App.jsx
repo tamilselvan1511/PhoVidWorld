@@ -59,13 +59,13 @@ function App() {
         body: JSON.stringify(form),
       });
       const result = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(result.error || 'We could not send your booking emails. Please try again.');
+      if (!response.ok) throw new Error(result.error || 'We could not save your booking. Please try again.');
       const booking = { ...form, id: result.bookingId, status: 'Pending', createdAt: result.createdAt || new Date().toISOString() };
       setLatest(booking);
       try { localStorage.setItem(storageKey, JSON.stringify([booking, ...readBookings()])); } catch { /* email delivery should still succeed without browser storage */ }
       setForm(emptyForm);
-    } catch {
-      setFormMessage('Your request could not be emailed. Please try again in a moment or contact the studio directly.');
+    } catch (error) {
+      setFormMessage(error instanceof Error ? error.message : 'Your booking could not be saved. Please try again or contact the studio.');
     } finally {
       setSubmitting(false);
     }
