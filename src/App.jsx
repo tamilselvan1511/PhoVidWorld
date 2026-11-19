@@ -144,7 +144,7 @@ function App() {
             </section>
 
             <section className="booking-panel" id="booking">
-              <div className="booking-intro"><p className="eyebrow">Let’s make it memorable</p><h2>Book your session</h2><p className="muted">Share a few details and we’ll email the booking summary to you and our studio. No online payment required.</p></div>
+              <div className="booking-intro"><p className="eyebrow">Let’s make it memorable</p><h2>Book your session</h2><p className="muted">Share a few details and our studio will contact you to confirm availability. No online payment required.</p></div>
               <form className="booking-form" onSubmit={submitBooking}>
                 <div className="field"><label htmlFor="customer">Your name <span>*</span></label><input id="customer" name="customer" required maxLength="80" placeholder="Enter your full name" value={form.customer} onChange={updateForm} /></div>
                 <div className="field"><label htmlFor="email">Email address <span>*</span></label><input id="email" name="email" type="email" autoComplete="email" required maxLength="254" placeholder="you@example.com" value={form.email} onChange={updateForm} /></div>
@@ -161,7 +161,7 @@ function App() {
 
       <footer><strong>PHOTOGRAPHY BOOKING</strong><span>Capturing the moments that matter · © {new Date().getFullYear()}</span></footer>
 
-      {latest && <div className="modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setLatest(null); }}><section className="success-modal" role="dialog" aria-modal="true" aria-labelledby="successTitle"><div className="success-check">✓</div><p className="eyebrow">Request received</p><h2 id="successTitle">Thank you for booking!</h2><p className="muted">Your booking summary has been emailed to you and our studio. We’ll contact you to confirm availability.</p><div className="modal-details"><strong>Your photography session</strong><span><b>Name:</b> {latest.customer}</span><span><b>Email:</b> {latest.email}</span><span><b>Service:</b> {latest.service}</span><span><b>Date:</b> {latest.date} · {latest.time}</span><span><b>Location:</b> {latest.location}</span><span><b>Booking ID:</b> {latest.id}</span></div><div className="modal-actions"><button className="button secondary-dark" onClick={() => setLatest(null)}>Done</button></div></section></div>}
+      {latest && <div className="modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setLatest(null); }}><section className="success-modal" role="dialog" aria-modal="true" aria-labelledby="successTitle"><div className="success-check">✓</div><p className="eyebrow">Request received</p><h2 id="successTitle">Thank you for booking!</h2><p className="muted">Your booking request has been saved. Our studio will contact you to confirm availability.</p><div className="modal-details"><strong>Your photography session</strong><span><b>Name:</b> {latest.customer}</span><span><b>Email:</b> {latest.email}</span><span><b>Service:</b> {latest.service}</span><span><b>Date:</b> {latest.date} · {latest.time}</span><span><b>Location:</b> {latest.location}</span><span><b>Booking ID:</b> {latest.id}</span></div><div className="modal-actions"><button className="button secondary-dark" onClick={() => setLatest(null)}>Done</button></div></section></div>}
     </>
   );
 }

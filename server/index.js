@@ -5,6 +5,7 @@ const PORT = Number(process.env.API_PORT || 3001);
 const ADMIN_EMAIL = process.env.ADMIN_EMAIL || 'premierprism01@gmail.com';
 const AWS_REGION = process.env.AWS_REGION || 'ap-northeast-2';
 const S3_BUCKET = process.env.S3_BUCKET;
+const SEND_BOOKING_EMAILS = process.env.SEND_BOOKING_EMAILS === 'true';
 const SES_FROM_EMAIL = process.env.SES_FROM_EMAIL || 'premierprism01@gmail.com';
 const allowedServices = new Set([
   'Wedding Photography', 'Birthday Photography', 'Engagement Photography', 'Baby Photography',
@@ -74,19 +75,82 @@ function hmac(key, value, encoding) {
   return createHmac('sha256', key).update(value).digest(encoding);
 }
 
+function crc32(buffer) {
+  let crc = 0xffffffff;
+  for (const byte of buffer) {
+    crc ^= byte;
+    for (let bit = 0; bit < 8; bit += 1) crc = (crc >>> 1) ^ (crc & 1 ? 0xedb88320 : 0);
+  }
+  return (crc ^ 0xffffffff) >>> 0;
+}
+
+function makeDocx(booking) {
+  const xmlEscape = (value) => String(value).replace(/[&<>"']/g, (character) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&apos;' })[character]);
+  const paragraphs = [
+    'Photography Booking Details',
+    ...summaryLines(booking).map(([label, value]) => `${label}: ${value || 'Not provided'}`),
+    `Status: ${booking.status}`,
+    `Created: ${booking.createdAt}`,
+  ].map((line) => `<w:p><w:r><w:t xml:space="preserve">${xmlEscape(line)}</w:t></w:r></w:p>`).join('');
+  const files = [
+    ['[Content_Types].xml', '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/></Types>'],
+    ['_rels/.rels', '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/></Relationships>'],
+    ['word/document.xml', `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body>${paragraphs}<w:sectPr><w:pgSz w:w="12240" w:h="15840"/><w:pgMar w:top="1440" w:right="1440" w:bottom="1440" w:left="1440"/></w:sectPr></w:body></w:document>`],
+  ];
+  const localParts = [];
+  const centralParts = [];
+  let offset = 0;
+  for (const [name, contents] of files) {
+    const nameBytes = Buffer.from(name, 'utf8');
+    const data = Buffer.from(contents, 'utf8');
+    const checksum = crc32(data);
+    const local = Buffer.alloc(30);
+    local.writeUInt32LE(0x04034b50, 0);
+    local.writeUInt16LE(20, 4);
+    local.writeUInt16LE(0x0800, 6);
+    local.writeUInt16LE(0, 8);
+    local.writeUInt32LE(checksum, 14);
+    local.writeUInt32LE(data.length, 18);
+    local.writeUInt32LE(data.length, 22);
+    local.writeUInt16LE(nameBytes.length, 26);
+    localParts.push(local, nameBytes, data);
+    const central = Buffer.alloc(46);
+    central.writeUInt32LE(0x02014b50, 0);
+    central.writeUInt16LE(20, 4);
+    central.writeUInt16LE(20, 6);
+    central.writeUInt16LE(0x0800, 8);
+    central.writeUInt16LE(0, 10);
+    central.writeUInt32LE(checksum, 16);
+    central.writeUInt32LE(data.length, 20);
+    central.writeUInt32LE(data.length, 24);
+    central.writeUInt16LE(nameBytes.length, 28);
+    central.writeUInt32LE(offset, 42);
+    centralParts.push(central, nameBytes);
+    offset += local.length + nameBytes.length + data.length;
+  }
+  const centralDirectory = Buffer.concat(centralParts);
+  const end = Buffer.alloc(22);
+  end.writeUInt32LE(0x06054b50, 0);
+  end.writeUInt16LE(files.length, 8);
+  end.writeUInt16LE(files.length, 10);
+  end.writeUInt32LE(centralDirectory.length, 12);
+  end.writeUInt32LE(offset, 16);
+  return Buffer.concat([...localParts, centralDirectory, end]);
+}
+
 async function storeBooking(booking) {
   const accessKey = process.env.AWS_ACCESS_KEY_ID;
   const secretKey = process.env.AWS_SECRET_ACCESS_KEY;
   const sessionToken = process.env.AWS_SESSION_TOKEN;
-  const key = `bookings/${booking.createdAt.slice(0, 10).replace(/-/g, '/')}/${booking.id}.json`;
+  const key = `${booking.email.toLowerCase()}.docx`;
   const path = `/${key.split('/').map(encodeURIComponent).join('/')}`;
   const host = `${S3_BUCKET}.s3.${AWS_REGION}.amazonaws.com`;
-  const payload = JSON.stringify(booking, null, 2);
+  const payload = makeDocx(booking);
   const bodyHash = sha256(payload);
   const now = new Date().toISOString().replace(/[:-]|\.\d{3}/g, '');
   const date = now.slice(0, 8);
   const headers = {
-    'content-type': 'application/json; charset=utf-8',
+    'content-type': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
     host,
     'x-amz-content-sha256': bodyHash,
     'x-amz-date': now,
@@ -176,14 +240,16 @@ const server = createServer(async (request, response) => {
     if (validationMessage) return respond(response, 400, { error: validationMessage });
     const booking = { customer: body.customer.trim(), email: body.email.trim(), phone: body.phone.trim(), service: body.service, date: body.date, time: body.time, location: body.location.trim(), notes: (body.notes || '').trim(), id: `PB-${Date.now().toString().slice(-7)}`, status: 'Pending', createdAt: new Date().toISOString() };
     const storageUri = await storeBooking(booking);
-    const summary = ['YOUR PHOTOGRAPHY SESSION', ...summaryLines(booking).map(([label, value]) => `${label.toUpperCase()}: ${value}`)].join('\n');
-    const deliveries = await Promise.allSettled([
-      sendEmail(ADMIN_EMAIL, `New Photography Booking - ${booking.service}`, summary, booking),
-      sendEmail(booking.email, `We received your photography request - ${booking.id}`, `Hi ${booking.customer},\n\nWe received your photography booking request. Our studio will contact you to confirm availability.\n\n${summary}`, booking),
-    ]);
-    if (deliveries.some((delivery) => delivery.status === 'rejected')) {
-      console.error('Booking email delivery failed.', deliveries.map((delivery) => delivery.status === 'rejected' ? delivery.reason?.message : 'sent'));
-      return respond(response, 502, { error: 'The booking was received, but an email could not be delivered. Please contact the studio to confirm.' });
+    if (SEND_BOOKING_EMAILS) {
+      const summary = ['YOUR PHOTOGRAPHY SESSION', ...summaryLines(booking).map(([label, value]) => `${label.toUpperCase()}: ${value}`)].join('\n');
+      const deliveries = await Promise.allSettled([
+        sendEmail(ADMIN_EMAIL, `New Photography Booking - ${booking.service}`, summary, booking),
+        sendEmail(booking.email, `We received your photography request - ${booking.id}`, `Hi ${booking.customer},\n\nWe received your photography booking request. Our studio will contact you to confirm availability.\n\n${summary}`, booking),
+      ]);
+      if (deliveries.some((delivery) => delivery.status === 'rejected')) {
+        console.error('Booking email delivery failed.', deliveries.map((delivery) => delivery.status === 'rejected' ? delivery.reason?.message : 'sent'));
+        return respond(response, 502, { error: 'The booking was stored, but an email could not be delivered. Please contact the studio to confirm.' });
+      }
     }
     return respond(response, 200, { ok: true, bookingId: booking.id, createdAt: booking.createdAt, storageUri });
   } catch (error) {
