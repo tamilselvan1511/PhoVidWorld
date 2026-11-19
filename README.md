@@ -10,7 +10,7 @@ The sender identity is `premierprism01@gmail.com` in the AWS Seoul region (`ap-n
 
    Do not use or share root account keys. Keep the secret access key private.
 
-2. Copy `.env.example` to `.env` and set `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY` from that IAM access key. Leave `AWS_REGION=ap-northeast-2` and `SES_FROM_EMAIL=premierprism01@gmail.com`. `.env` is ignored by Git.
+2. Create a private S3 bucket in the same AWS region. Copy `.env.example` to `.env` and set `S3_BUCKET`, `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY`. Leave `AWS_REGION=ap-northeast-2` and `SES_FROM_EMAIL=premierprism01@gmail.com`. `.env` is ignored by Git.
 3. While SES is in the sandbox, verify both recipient addresses in SES: the studio address and a customer test address you can access. Sandbox SES can only send to verified recipient identities.
 4. Start the API with `npm run server`, then start the frontend with `npm run dev` in a second terminal.
 5. Submit a booking using the verified test customer email. The API sends one summary to the studio and a confirmation summary to the customer.
@@ -38,6 +38,6 @@ Create a production frontend build with `npm run build`.
 ## App behavior and deployment
 
 - The React app renders the home page, photography services, booking form and confirmation dialog.
-- Booking requests are stored in the submitting browser's `localStorage` after email delivery succeeds.
+- The API stores each validated booking as a JSON object in `s3://<S3_BUCKET>/bookings/YYYY/MM/DD/<booking-id>.json`. The object contains the submitted booking fields plus `id`, `status` (`Pending`) and `createdAt` (ISO timestamp). Browser `localStorage` is only a convenience copy.
 - The API validates bookings, applies a small per-IP request limit, and sends two formatted SES messages.
-- For deployment, run the Node API behind the frontend and provide AWS credentials through the hosting platform's secret settings or an attached IAM role. Do not commit `.env` or AWS keys.
+- The API's IAM identity needs `s3:PutObject` on `arn:aws:s3:::<S3_BUCKET>/bookings/*` and `ses:SendEmail` for the sender identity. For deployment, run the Node API behind the frontend and provide AWS credentials through the hosting platform's secret settings or an attached IAM role. Do not commit `.env` or AWS keys.

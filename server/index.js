@@ -4,6 +4,7 @@ import { createHash, createHmac } from 'node:crypto';
 const PORT = Number(process.env.API_PORT || 3001);
 const ADMIN_EMAIL = process.env.ADMIN_EMAIL || 'premierprism01@gmail.com';
 const AWS_REGION = process.env.AWS_REGION || 'ap-northeast-2';
+const S3_BUCKET = process.env.S3_BUCKET;
 const SES_FROM_EMAIL = process.env.SES_FROM_EMAIL || 'premierprism01@gmail.com';
 const allowedServices = new Set([
   'Wedding Photography', 'Birthday Photography', 'Engagement Photography', 'Baby Photography',
@@ -73,6 +74,48 @@ function hmac(key, value, encoding) {
   return createHmac('sha256', key).update(value).digest(encoding);
 }
 
+async function storeBooking(booking) {
+  const accessKey = process.env.AWS_ACCESS_KEY_ID;
+  const secretKey = process.env.AWS_SECRET_ACCESS_KEY;
+  const sessionToken = process.env.AWS_SESSION_TOKEN;
+  const key = `bookings/${booking.createdAt.slice(0, 10).replace(/-/g, '/')}/${booking.id}.json`;
+  const path = `/${key.split('/').map(encodeURIComponent).join('/')}`;
+  const host = `${S3_BUCKET}.s3.${AWS_REGION}.amazonaws.com`;
+  const payload = JSON.stringify(booking, null, 2);
+  const bodyHash = sha256(payload);
+  const now = new Date().toISOString().replace(/[:-]|\.\d{3}/g, '');
+  const date = now.slice(0, 8);
+  const headers = {
+    'content-type': 'application/json; charset=utf-8',
+    host,
+    'x-amz-content-sha256': bodyHash,
+    'x-amz-date': now,
+  };
+  if (sessionToken) headers['x-amz-security-token'] = sessionToken;
+  const signedHeaderNames = Object.keys(headers).sort();
+  const canonicalHeaders = signedHeaderNames.map((name) => `${name}:${headers[name].trim()}\n`).join('');
+  const signedHeaders = signedHeaderNames.join(';');
+  const canonicalRequest = ['PUT', path, '', canonicalHeaders, signedHeaders, bodyHash].join('\n');
+  const scope = `${date}/${AWS_REGION}/s3/aws4_request`;
+  const stringToSign = ['AWS4-HMAC-SHA256', now, scope, sha256(canonicalRequest)].join('\n');
+  const dateKey = hmac(`AWS4${secretKey}`, date);
+  const regionKey = hmac(dateKey, AWS_REGION);
+  const serviceKey = hmac(regionKey, 's3');
+  const signingKey = hmac(serviceKey, 'aws4_request');
+  const signature = hmac(signingKey, stringToSign, 'hex');
+  const authorization = `AWS4-HMAC-SHA256 Credential=${accessKey}/${scope}, SignedHeaders=${signedHeaders}, Signature=${signature}`;
+  const result = await fetch(`https://${host}${path}`, {
+    method: 'PUT',
+    headers: { ...headers, Authorization: authorization },
+    body: payload,
+  });
+  if (!result.ok) {
+    const detail = await result.text();
+    throw new Error(`Amazon S3 returned ${result.status}: ${detail.slice(0, 400)}`);
+  }
+  return `s3://${S3_BUCKET}/${key}`;
+}
+
 async function sendEmail(to, subject, text, booking) {
   const html = `<main style="max-width:640px;margin:0 auto;padding:28px;color:#25251f;font:15px Arial,sans-serif"><h1 style="font-family:Georgia,serif;font-size:26px">${escapeHtml(subject)}</h1><p>${escapeHtml(text).replace(/\n/g, '<br>')}</p>${summaryHtml(booking)}<p style="margin-top:24px;color:#77756d;font-size:12px">Photography Booking Studio</p></main>`;
   const payload = JSON.stringify({
@@ -126,12 +169,13 @@ const server = createServer(async (request, response) => {
   if (request.method === 'GET' && url.pathname === '/api/health') return respond(response, 200, { ok: true });
   if (request.method !== 'POST' || url.pathname !== '/api/bookings') return respond(response, 404, { error: 'Not found.' });
   if (!checkRateLimit(request.socket.remoteAddress || 'local')) return respond(response, 429, { error: 'Too many requests. Please wait and try again.' });
-  if (!process.env.AWS_ACCESS_KEY_ID || !process.env.AWS_SECRET_ACCESS_KEY) return respond(response, 503, { error: 'Booking email is not configured yet. Add AWS SES credentials to the local .env file.' });
+  if (!process.env.AWS_ACCESS_KEY_ID || !process.env.AWS_SECRET_ACCESS_KEY || !S3_BUCKET) return respond(response, 503, { error: 'Booking storage/email is not configured yet. Add AWS credentials and S3_BUCKET to the local .env file.' });
   try {
     const body = await readJson(request);
     const validationMessage = validateBooking(body);
     if (validationMessage) return respond(response, 400, { error: validationMessage });
-    const booking = { customer: body.customer.trim(), email: body.email.trim(), phone: body.phone.trim(), service: body.service, date: body.date, time: body.time, location: body.location.trim(), notes: (body.notes || '').trim(), id: `PB-${Date.now().toString().slice(-7)}` };
+    const booking = { customer: body.customer.trim(), email: body.email.trim(), phone: body.phone.trim(), service: body.service, date: body.date, time: body.time, location: body.location.trim(), notes: (body.notes || '').trim(), id: `PB-${Date.now().toString().slice(-7)}`, status: 'Pending', createdAt: new Date().toISOString() };
+    const storageUri = await storeBooking(booking);
     const summary = ['YOUR PHOTOGRAPHY SESSION', ...summaryLines(booking).map(([label, value]) => `${label.toUpperCase()}: ${value}`)].join('\n');
     const deliveries = await Promise.allSettled([
       sendEmail(ADMIN_EMAIL, `New Photography Booking - ${booking.service}`, summary, booking),
@@ -141,7 +185,7 @@ const server = createServer(async (request, response) => {
       console.error('Booking email delivery failed.', deliveries.map((delivery) => delivery.status === 'rejected' ? delivery.reason?.message : 'sent'));
       return respond(response, 502, { error: 'The booking was received, but an email could not be delivered. Please contact the studio to confirm.' });
     }
-    return respond(response, 200, { ok: true, bookingId: booking.id });
+    return respond(response, 200, { ok: true, bookingId: booking.id, createdAt: booking.createdAt, storageUri });
   } catch (error) {
     return respond(response, error.status || 500, { error: error.status ? error.message : 'We could not process your booking. Please try again.' });
   }
