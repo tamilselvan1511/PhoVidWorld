@@ -163,7 +163,9 @@ const server = createServer(async (request, response) => {
   const url = new URL(request.url, `http://127.0.0.1:${PORT}`);
   if (request.method === 'GET' && url.pathname === '/api/health') return respond(response, 200, { ok: true });
   if (request.method !== 'POST' || url.pathname !== '/api/bookings') return respond(response, 404, { error: 'Not found.' });
-  if (!checkRateLimit(request.socket.remoteAddress || 'local')) return respond(response, 429, { error: 'Too many requests. Please wait and try again.' });
+  const forwardedFor = request.headers['x-forwarded-for'];
+  const clientIp = typeof forwardedFor === 'string' ? forwardedFor.split(',').at(-1).trim() : request.socket.remoteAddress || 'local';
+  if (!checkRateLimit(clientIp)) return respond(response, 429, { error: 'Too many requests. Please wait and try again.' });
   try {
     const body = await readJson(request);
     const validationMessage = validateBooking(body);
@@ -181,4 +183,4 @@ const server = createServer(async (request, response) => {
   }
 });
 
-server.listen(PORT, '127.0.0.1', () => console.log(`Booking API listening at http://127.0.0.1:${PORT} (Amazon SES ${AWS_REGION})`));
+server.listen(PORT, '0.0.0.0', () => console.log(`Booking API listening on port ${PORT} (Amazon SES ${AWS_REGION})`));

@@ -30,4 +30,15 @@ Create a production frontend build with `npm run build`.
 
 - The React app renders the home page, photography services, booking form and confirmation dialog.
 - The API validates each booking, applies a small per-IP request limit, and emails the booking details only to the studio admin. It does not persist bookings on the server; browser `localStorage` is only a convenience copy.
-- The API needs only `ses:SendEmail` on the verified sender identity to send bookings. Rebuild and recreate the Docker container after updating the app so the code changes are included. Do not commit `.env` or AWS keys.
+- The API needs only `ses:SendEmail` on the verified sender identity to send bookings. The production Docker Compose setup runs a Node API service behind Nginx; the `.env` file is passed to the API container. Do not commit `.env` or AWS keys.
+
+## Deploy with Docker Compose
+
+On the EC2 instance, keep the `.env` file in the project directory. After pulling code changes, replace the old static-only Nginx container and start both services:
+
+```sh
+docker rm -f phovidworld
+docker compose up -d --build
+```
+
+The site remains available on port `8080`. Check API errors with `docker compose logs --tail=100 api`.
