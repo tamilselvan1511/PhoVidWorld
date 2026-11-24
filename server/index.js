@@ -5,6 +5,9 @@ import ExcelJS from 'exceljs';
 const PORT = Number(process.env.API_PORT || 3001);
 const AWS_REGION = process.env.AWS_REGION || 'ap-northeast-2';
 const S3_BUCKET = process.env.S3_BUCKET;
+const ADMIN_EMAIL = process.env.ADMIN_EMAIL || 'premierprism01@gmail.com';
+const SES_FROM_EMAIL = process.env.SES_FROM_EMAIL || 'premierprism01@gmail.com';
+const SEND_BOOKING_EMAILS = process.env.SEND_BOOKING_EMAILS === 'true';
 const allowedServices = new Set([
   'Wedding Photography', 'Birthday Photography', 'Engagement Photography', 'Baby Photography',
   'Events Photography', 'Pre-Wedding Photography', 'Candid Photography', 'Outdoor Photoshoot',
@@ -195,6 +198,55 @@ async function storeBooking(booking) {
   }
 }
 
+async function sendAdminBookingEmail(booking) {
+  const summary = [
+    'NEW PHOTOGRAPHY BOOKING',
+    `Booking ID: ${booking.id}`,
+    `Created: ${booking.createdAt}`,
+    `Name: ${booking.customer}`,
+    `Email: ${booking.email}`,
+    `Mobile: ${booking.phone}`,
+    `Service: ${booking.service}`,
+    `Date: ${booking.date}`,
+    `Time: ${booking.time}`,
+    `Location: ${booking.location}`,
+    `Notes: ${booking.notes || 'Not provided'}`,
+  ].join('\n');
+  const payload = JSON.stringify({
+    FromEmailAddress: `Photography Booking Studio <${SES_FROM_EMAIL}>`,
+    Destination: { ToAddresses: [ADMIN_EMAIL] },
+    Content: { Simple: {
+      Subject: { Data: `New Photography Booking - ${booking.service}`, Charset: 'UTF-8' },
+      Body: { Text: { Data: summary, Charset: 'UTF-8' } },
+    } },
+  });
+  const { accessKey, secretKey, sessionToken } = await getAwsCredentials();
+  const host = `email.${AWS_REGION}.amazonaws.com`;
+  const path = '/v2/email/outbound-emails';
+  const bodyHash = sha256(payload);
+  const now = new Date().toISOString().replace(/[:-]|\.\d{3}/g, '');
+  const date = now.slice(0, 8);
+  const headers = { 'content-type': 'application/json', host, 'x-amz-content-sha256': bodyHash, 'x-amz-date': now };
+  if (sessionToken) headers['x-amz-security-token'] = sessionToken;
+  const names = Object.keys(headers).sort();
+  const canonicalHeaders = names.map((name) => `${name}:${headers[name].trim()}\n`).join('');
+  const signedHeaders = names.join(';');
+  const canonicalRequest = ['POST', path, '', canonicalHeaders, signedHeaders, bodyHash].join('\n');
+  const scope = `${date}/${AWS_REGION}/ses/aws4_request`;
+  const stringToSign = ['AWS4-HMAC-SHA256', now, scope, sha256(canonicalRequest)].join('\n');
+  const dateKey = hmac(`AWS4${secretKey}`, date);
+  const regionKey = hmac(dateKey, AWS_REGION);
+  const serviceKey = hmac(regionKey, 'ses');
+  const signingKey = hmac(serviceKey, 'aws4_request');
+  const signature = hmac(signingKey, stringToSign, 'hex');
+  const authorization = `AWS4-HMAC-SHA256 Credential=${accessKey}/${scope}, SignedHeaders=${signedHeaders}, Signature=${signature}`;
+  const result = await fetch(`https://${host}${path}`, { method: 'POST', headers: { ...headers, Authorization: authorization }, body: payload });
+  if (!result.ok) {
+    const detail = await result.text();
+    throw new Error(`Amazon SES returned ${result.status}: ${detail.slice(0, 400)}`);
+  }
+}
+
 const server = createServer(async (request, response) => {
   const url = new URL(request.url, `http://127.0.0.1:${PORT}`);
   if (request.method === 'GET' && url.pathname === '/api/health') return respond(response, 200, { ok: true });
@@ -213,7 +265,15 @@ const server = createServer(async (request, response) => {
       console.error('Booking S3 save failed.', error.message);
       return respond(response, 502, { error: 'Booking could not be saved to S3. Check the bucket name, bucket region, S3 permissions, and AWS credentials or EC2 IAM role.' });
     }
-    return respond(response, 200, { ok: true, bookingId: booking.id, createdAt: booking.createdAt, storageUri });
+    if (SEND_BOOKING_EMAILS) {
+      try {
+        await sendAdminBookingEmail(booking);
+      } catch (error) {
+        console.error('Admin booking email failed after S3 save.', error.message);
+        return respond(response, 502, { error: 'Booking was saved to S3, but its email to the admin could not be sent. Please contact the studio before submitting again.' });
+      }
+    }
+    return respond(response, 200, { ok: true, bookingId: booking.id, createdAt: booking.createdAt, storageUri, adminEmailSent: SEND_BOOKING_EMAILS });
   } catch (error) {
     return respond(response, error.status || 500, { error: error.status ? error.message : 'We could not process your booking. Please try again.' });
   }
