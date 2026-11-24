@@ -10,6 +10,7 @@
     "server": "node --env-file-if-exists=.env server/index.js"
   },
   "dependencies": {
+    "@aws-sdk/client-sesv2": "^3.1176.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0"
   },

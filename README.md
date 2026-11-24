@@ -7,7 +7,7 @@ A React booking site with a Node.js API. Booking requests are emailed to the stu
 1. Verify `SES_FROM_EMAIL` in Amazon SES in the same region set by `AWS_REGION` (`ap-northeast-2`).
 2. Set `ADMIN_EMAIL` to the studio inbox. If SES is still in the sandbox, verify this recipient address in SES too.
 3. On EC2, attach an instance role with `ses:SendEmail` on the verified sender identity ARN. This API uses the EC2 role when access-key environment variables are absent. For Docker bridge networking, the EC2 metadata response hop limit should be at least `2` for IMDSv2.
-4. For local development only, copy `.env.example` to `.env` and set `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY` for a limited IAM user. Never use root keys or commit `.env`.
+4. For local development only, copy `.env.example` to `.env` and add `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY` for a limited IAM user. Leave them unset on EC2 so the AWS SDK can use the instance role. Never use root keys or commit `.env`.
 5. Start the API with `npm run server`, then start the frontend with `npm run dev` in a second terminal.
 
 ## Run locally
