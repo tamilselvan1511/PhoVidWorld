@@ -3,11 +3,8 @@ import { createHash, createHmac } from 'node:crypto';
 import ExcelJS from 'exceljs';
 
 const PORT = Number(process.env.API_PORT || 3001);
-const ADMIN_EMAIL = process.env.ADMIN_EMAIL || 'premierprism01@gmail.com';
 const AWS_REGION = process.env.AWS_REGION || 'ap-northeast-2';
 const S3_BUCKET = process.env.S3_BUCKET;
-const SEND_BOOKING_EMAILS = process.env.SEND_BOOKING_EMAILS === 'true';
-const SES_FROM_EMAIL = process.env.SES_FROM_EMAIL || 'premierprism01@gmail.com';
 const allowedServices = new Set([
   'Wedding Photography', 'Birthday Photography', 'Engagement Photography', 'Baby Photography',
   'Events Photography', 'Pre-Wedding Photography', 'Candid Photography', 'Outdoor Photoshoot',
@@ -19,10 +16,6 @@ const REQUEST_LIMIT = 5;
 function respond(response, status, payload) {
   response.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' });
   response.end(JSON.stringify(payload));
-}
-
-function escapeHtml(value) {
-  return String(value).replace(/[&<>"']/g, (character) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[character]);
 }
 
 async function readJson(request) {
@@ -59,15 +52,6 @@ function validateBooking(body) {
   return null;
 }
 
-function summaryLines(booking) {
-  return [['Name', booking.customer], ['Email', booking.email], ['Mobile number', booking.phone], ['Service', booking.service], ['Date', booking.date], ['Time', booking.time], ['Location', booking.location], ['Tell us more', booking.notes || 'Not provided'], ['Booking ID', booking.id]];
-}
-
-function summaryHtml(booking) {
-  const rows = summaryLines(booking).map(([label, value]) => `<tr><th style="padding:8px 12px;text-align:left;color:#6b6259;border-bottom:1px solid #eee8df">${escapeHtml(label)}</th><td style="padding:8px 12px;border-bottom:1px solid #eee8df">${escapeHtml(value)}</td></tr>`).join('');
-  return `<table style="width:100%;border-collapse:collapse;font:14px Arial,sans-serif">${rows}</table>`;
-}
-
 function sha256(value) {
   return createHash('sha256').update(value).digest('hex');
 }
@@ -90,11 +74,58 @@ const bookingColumns = [
   { header: 'Status', key: 'status', width: 16 },
 ];
 const bookingQueues = new Map();
+let cachedRoleCredentials;
 
-async function s3Request(method, key, payload) {
+async function metadataRequest(url, options = {}) {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 2000);
+  try {
+    return await fetch(url, { ...options, signal: controller.signal });
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+async function getAwsCredentials() {
   const accessKey = process.env.AWS_ACCESS_KEY_ID;
   const secretKey = process.env.AWS_SECRET_ACCESS_KEY;
-  const sessionToken = process.env.AWS_SESSION_TOKEN;
+  if (accessKey && secretKey) {
+    return { accessKey, secretKey, sessionToken: process.env.AWS_SESSION_TOKEN };
+  }
+  if (accessKey || secretKey) throw new Error('Set both AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY, or remove both to use the EC2 IAM role.');
+
+  if (cachedRoleCredentials && Date.parse(cachedRoleCredentials.expiration) - Date.now() > 60_000) return cachedRoleCredentials;
+
+  const metadataRoot = 'http://169.254.169.254/latest';
+  const tokenResponse = await metadataRequest(`${metadataRoot}/api/token`, {
+    method: 'PUT',
+    headers: { 'X-aws-ec2-metadata-token-ttl-seconds': '21600' },
+  });
+  if (!tokenResponse.ok) throw new Error(`EC2 metadata service did not issue a token (${tokenResponse.status}). Check the instance role and container metadata hop limit.`);
+  const token = await tokenResponse.text();
+  const metadataHeaders = { 'X-aws-ec2-metadata-token': token };
+  const roleResponse = await metadataRequest(`${metadataRoot}/meta-data/iam/security-credentials/`, { headers: metadataHeaders });
+  if (!roleResponse.ok) throw new Error(`EC2 instance role is unavailable (${roleResponse.status}).`);
+  const roleName = (await roleResponse.text()).trim().split('\n')[0];
+  if (!roleName) throw new Error('No IAM role is attached to this EC2 instance.');
+
+  const credentialResponse = await metadataRequest(`${metadataRoot}/meta-data/iam/security-credentials/${encodeURIComponent(roleName)}`, { headers: metadataHeaders });
+  if (!credentialResponse.ok) throw new Error(`Could not retrieve EC2 role credentials (${credentialResponse.status}).`);
+  const credentials = await credentialResponse.json();
+  if (credentials.Code !== 'Success' || !credentials.AccessKeyId || !credentials.SecretAccessKey || !credentials.Token || !credentials.Expiration) {
+    throw new Error('EC2 returned invalid IAM role credentials.');
+  }
+  cachedRoleCredentials = {
+    accessKey: credentials.AccessKeyId,
+    secretKey: credentials.SecretAccessKey,
+    sessionToken: credentials.Token,
+    expiration: credentials.Expiration,
+  };
+  return cachedRoleCredentials;
+}
+
+async function s3Request(method, key, payload) {
+  const { accessKey, secretKey, sessionToken } = await getAwsCredentials();
   const path = `/${key.split('/').map(encodeURIComponent).join('/')}`;
   const host = `${S3_BUCKET}.s3.${AWS_REGION}.amazonaws.com`;
   const bodyHash = sha256(payload || '');
@@ -164,60 +195,12 @@ async function storeBooking(booking) {
   }
 }
 
-async function sendEmail(to, subject, text, booking) {
-  const html = `<main style="max-width:640px;margin:0 auto;padding:28px;color:#25251f;font:15px Arial,sans-serif"><h1 style="font-family:Georgia,serif;font-size:26px">${escapeHtml(subject)}</h1><p>${escapeHtml(text).replace(/\n/g, '<br>')}</p>${summaryHtml(booking)}<p style="margin-top:24px;color:#77756d;font-size:12px">Photography Booking Studio</p></main>`;
-  const payload = JSON.stringify({
-    FromEmailAddress: `Photography Booking Studio <${SES_FROM_EMAIL}>`,
-    Destination: { ToAddresses: [to] },
-    Content: { Simple: {
-      Subject: { Data: subject, Charset: 'UTF-8' },
-      Body: { Text: { Data: text, Charset: 'UTF-8' }, Html: { Data: html, Charset: 'UTF-8' } },
-    } },
-  });
-  const accessKey = process.env.AWS_ACCESS_KEY_ID;
-  const secretKey = process.env.AWS_SECRET_ACCESS_KEY;
-  const sessionToken = process.env.AWS_SESSION_TOKEN;
-  const host = `email.${AWS_REGION}.amazonaws.com`;
-  const path = '/v2/email/outbound-emails';
-  const bodyHash = sha256(payload);
-  const now = new Date().toISOString().replace(/[:-]|\.\d{3}/g, '');
-  const date = now.slice(0, 8);
-  const headers = {
-    'content-type': 'application/json',
-    host,
-    'x-amz-content-sha256': bodyHash,
-    'x-amz-date': now,
-  };
-  if (sessionToken) headers['x-amz-security-token'] = sessionToken;
-  const signedHeaderNames = Object.keys(headers).sort();
-  const canonicalHeaders = signedHeaderNames.map((name) => `${name}:${headers[name].trim()}\n`).join('');
-  const signedHeaders = signedHeaderNames.join(';');
-  const canonicalRequest = ['POST', path, '', canonicalHeaders, signedHeaders, bodyHash].join('\n');
-  const scope = `${date}/${AWS_REGION}/ses/aws4_request`;
-  const stringToSign = ['AWS4-HMAC-SHA256', now, scope, sha256(canonicalRequest)].join('\n');
-  const dateKey = hmac(`AWS4${secretKey}`, date);
-  const regionKey = hmac(dateKey, AWS_REGION);
-  const serviceKey = hmac(regionKey, 'ses');
-  const signingKey = hmac(serviceKey, 'aws4_request');
-  const signature = hmac(signingKey, stringToSign, 'hex');
-  const authorization = `AWS4-HMAC-SHA256 Credential=${accessKey}/${scope}, SignedHeaders=${signedHeaders}, Signature=${signature}`;
-  const result = await fetch(`https://${host}${path}`, {
-    method: 'POST',
-    headers: { ...headers, Authorization: authorization },
-    body: payload,
-  });
-  if (!result.ok) {
-    const detail = await result.text();
-    throw new Error(`Amazon SES returned ${result.status}: ${detail.slice(0, 400)}`);
-  }
-}
-
 const server = createServer(async (request, response) => {
   const url = new URL(request.url, `http://127.0.0.1:${PORT}`);
   if (request.method === 'GET' && url.pathname === '/api/health') return respond(response, 200, { ok: true });
   if (request.method !== 'POST' || url.pathname !== '/api/bookings') return respond(response, 404, { error: 'Not found.' });
   if (!checkRateLimit(request.socket.remoteAddress || 'local')) return respond(response, 429, { error: 'Too many requests. Please wait and try again.' });
-  if (!process.env.AWS_ACCESS_KEY_ID || !process.env.AWS_SECRET_ACCESS_KEY || !S3_BUCKET) return respond(response, 503, { error: 'Booking storage/email is not configured yet. Add AWS credentials and S3_BUCKET to the local .env file.' });
+  if (!S3_BUCKET) return respond(response, 503, { error: 'Booking storage is not configured yet. Set S3_BUCKET in the environment.' });
   try {
     const body = await readJson(request);
     const validationMessage = validateBooking(body);
@@ -228,18 +211,7 @@ const server = createServer(async (request, response) => {
       storageUri = await storeBooking(booking);
     } catch (error) {
       console.error('Booking S3 save failed.', error.message);
-      return respond(response, 502, { error: 'Booking could not be saved to S3. Check the bucket name, bucket region, and s3:ListBucket, s3:GetObject, and s3:PutObject permissions.' });
-    }
-    if (SEND_BOOKING_EMAILS) {
-      const summary = ['YOUR PHOTOGRAPHY SESSION', ...summaryLines(booking).map(([label, value]) => `${label.toUpperCase()}: ${value}`)].join('\n');
-      const deliveries = await Promise.allSettled([
-        sendEmail(ADMIN_EMAIL, `New Photography Booking - ${booking.service}`, summary, booking),
-        sendEmail(booking.email, `We received your photography request - ${booking.id}`, `Hi ${booking.customer},\n\nWe received your photography booking request. Our studio will contact you to confirm availability.\n\n${summary}`, booking),
-      ]);
-      if (deliveries.some((delivery) => delivery.status === 'rejected')) {
-        console.error('Booking email delivery failed.', deliveries.map((delivery) => delivery.status === 'rejected' ? delivery.reason?.message : 'sent'));
-        return respond(response, 502, { error: 'The booking was stored, but an email could not be delivered. Please contact the studio to confirm.' });
-      }
+      return respond(response, 502, { error: 'Booking could not be saved to S3. Check the bucket name, bucket region, S3 permissions, and AWS credentials or EC2 IAM role.' });
     }
     return respond(response, 200, { ok: true, bookingId: booking.id, createdAt: booking.createdAt, storageUri });
   } catch (error) {
@@ -247,4 +219,4 @@ const server = createServer(async (request, response) => {
   }
 });
 
-server.listen(PORT, '127.0.0.1', () => console.log(`Booking email API listening at http://127.0.0.1:${PORT} (AWS SES ${AWS_REGION})`));
+server.listen(PORT, '127.0.0.1', () => console.log(`Booking API listening at http://127.0.0.1:${PORT} (AWS S3 ${AWS_REGION})`));
