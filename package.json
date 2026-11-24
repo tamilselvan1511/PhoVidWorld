@@ -10,7 +10,6 @@
     "server": "node --env-file=.env server/index.js"
   },
   "dependencies": {
-    "exceljs": "^4.4.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0"
   },

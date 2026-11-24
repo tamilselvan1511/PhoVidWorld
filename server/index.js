@@ -1,13 +1,10 @@
 import { createServer } from 'node:http';
 import { createHash, createHmac } from 'node:crypto';
-import ExcelJS from 'exceljs';
 
 const PORT = Number(process.env.API_PORT || 3001);
 const AWS_REGION = process.env.AWS_REGION || 'ap-northeast-2';
-const S3_BUCKET = process.env.S3_BUCKET;
 const ADMIN_EMAIL = process.env.ADMIN_EMAIL || 'premierprism01@gmail.com';
 const SES_FROM_EMAIL = process.env.SES_FROM_EMAIL || 'premierprism01@gmail.com';
-const SEND_BOOKING_EMAILS = process.env.SEND_BOOKING_EMAILS === 'true';
 const allowedServices = new Set([
   'Wedding Photography', 'Birthday Photography', 'Engagement Photography', 'Baby Photography',
   'Events Photography', 'Pre-Wedding Photography', 'Candid Photography', 'Outdoor Photoshoot',
@@ -63,20 +60,6 @@ function hmac(key, value, encoding) {
   return createHmac('sha256', key).update(value).digest(encoding);
 }
 
-const bookingColumns = [
-  { header: 'Booking ID', key: 'id', width: 18 },
-  { header: 'Created At', key: 'createdAt', width: 25 },
-  { header: 'Customer Name', key: 'customer', width: 24 },
-  { header: 'Email', key: 'email', width: 32 },
-  { header: 'Mobile', key: 'phone', width: 20 },
-  { header: 'Service', key: 'service', width: 28 },
-  { header: 'Preferred Date', key: 'date', width: 18 },
-  { header: 'Time', key: 'time', width: 16 },
-  { header: 'Location', key: 'location', width: 32 },
-  { header: 'Notes', key: 'notes', width: 42 },
-  { header: 'Status', key: 'status', width: 16 },
-];
-const bookingQueues = new Map();
 let cachedRoleCredentials;
 
 async function metadataRequest(url, options = {}) {
@@ -125,77 +108,6 @@ async function getAwsCredentials() {
     expiration: credentials.Expiration,
   };
   return cachedRoleCredentials;
-}
-
-async function s3Request(method, key, payload) {
-  const { accessKey, secretKey, sessionToken } = await getAwsCredentials();
-  const path = `/${key.split('/').map(encodeURIComponent).join('/')}`;
-  const host = `${S3_BUCKET}.s3.${AWS_REGION}.amazonaws.com`;
-  const bodyHash = sha256(payload || '');
-  const now = new Date().toISOString().replace(/[:-]|\.\d{3}/g, '');
-  const date = now.slice(0, 8);
-  const headers = { host, 'x-amz-content-sha256': bodyHash, 'x-amz-date': now };
-  if (payload) headers['content-type'] = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
-  if (sessionToken) headers['x-amz-security-token'] = sessionToken;
-  const signedHeaderNames = Object.keys(headers).sort();
-  const canonicalHeaders = signedHeaderNames.map((name) => `${name}:${headers[name].trim()}\n`).join('');
-  const signedHeaders = signedHeaderNames.join(';');
-  const canonicalRequest = [method, path, '', canonicalHeaders, signedHeaders, bodyHash].join('\n');
-  const scope = `${date}/${AWS_REGION}/s3/aws4_request`;
-  const stringToSign = ['AWS4-HMAC-SHA256', now, scope, sha256(canonicalRequest)].join('\n');
-  const dateKey = hmac(`AWS4${secretKey}`, date);
-  const regionKey = hmac(dateKey, AWS_REGION);
-  const serviceKey = hmac(regionKey, 's3');
-  const signingKey = hmac(serviceKey, 'aws4_request');
-  const signature = hmac(signingKey, stringToSign, 'hex');
-  const authorization = `AWS4-HMAC-SHA256 Credential=${accessKey}/${scope}, SignedHeaders=${signedHeaders}, Signature=${signature}`;
-  return fetch(`https://${host}${path}`, {
-    method,
-    headers: { ...headers, Authorization: authorization },
-    ...(payload ? { body: payload } : {}),
-  });
-}
-
-async function saveCustomerWorkbook(booking, email) {
-  const key = `${email}.xlsx`;
-  const readResult = await s3Request('GET', key);
-  let workbook = new ExcelJS.Workbook();
-  if (readResult.ok) {
-    await workbook.xlsx.load(Buffer.from(await readResult.arrayBuffer()));
-  } else if (readResult.status !== 404) {
-    const detail = await readResult.text();
-    throw new Error(`Amazon S3 could not read the workbook (${readResult.status}): ${detail.slice(0, 400)}`);
-  }
-  let sheet = workbook.getWorksheet('Bookings');
-  if (!sheet) sheet = workbook.addWorksheet('Bookings');
-  if (sheet.rowCount === 0) {
-    sheet.columns = bookingColumns;
-    sheet.views = [{ state: 'frozen', ySplit: 1 }];
-    sheet.autoFilter = 'A1:K1';
-    const header = sheet.getRow(1);
-    header.font = { bold: true, color: { argb: 'FFFFFFFF' } };
-    header.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF29362E' } };
-  }
-  sheet.addRow(booking);
-  const payload = Buffer.from(await workbook.xlsx.writeBuffer());
-  const writeResult = await s3Request('PUT', key, payload);
-  if (!writeResult.ok) {
-    const detail = await writeResult.text();
-    throw new Error(`Amazon S3 could not save the workbook (${writeResult.status}): ${detail.slice(0, 400)}`);
-  }
-  return `s3://${S3_BUCKET}/${key}`;
-}
-
-async function storeBooking(booking) {
-  const email = booking.email.toLowerCase();
-  const previous = bookingQueues.get(email) || Promise.resolve();
-  const current = previous.catch(() => {}).then(() => saveCustomerWorkbook(booking, email));
-  bookingQueues.set(email, current);
-  try {
-    return await current;
-  } finally {
-    if (bookingQueues.get(email) === current) bookingQueues.delete(email);
-  }
 }
 
 async function sendAdminBookingEmail(booking) {
@@ -252,31 +164,21 @@ const server = createServer(async (request, response) => {
   if (request.method === 'GET' && url.pathname === '/api/health') return respond(response, 200, { ok: true });
   if (request.method !== 'POST' || url.pathname !== '/api/bookings') return respond(response, 404, { error: 'Not found.' });
   if (!checkRateLimit(request.socket.remoteAddress || 'local')) return respond(response, 429, { error: 'Too many requests. Please wait and try again.' });
-  if (!S3_BUCKET) return respond(response, 503, { error: 'Booking storage is not configured yet. Set S3_BUCKET in the environment.' });
   try {
     const body = await readJson(request);
     const validationMessage = validateBooking(body);
     if (validationMessage) return respond(response, 400, { error: validationMessage });
     const booking = { customer: body.customer.trim(), email: body.email.trim(), phone: body.phone.trim(), service: body.service, date: body.date, time: body.time, location: body.location.trim(), notes: (body.notes || '').trim(), id: `PB-${Date.now().toString().slice(-7)}`, status: 'Pending', createdAt: new Date().toISOString() };
-    let storageUri;
     try {
-      storageUri = await storeBooking(booking);
+      await sendAdminBookingEmail(booking);
     } catch (error) {
-      console.error('Booking S3 save failed.', error.message);
-      return respond(response, 502, { error: 'Booking could not be saved to S3. Check the bucket name, bucket region, S3 permissions, and AWS credentials or EC2 IAM role.' });
+      console.error('Admin booking email failed.', error.message);
+      return respond(response, 502, { error: 'We could not send your booking request to the studio. Please try again or contact the studio directly.' });
     }
-    if (SEND_BOOKING_EMAILS) {
-      try {
-        await sendAdminBookingEmail(booking);
-      } catch (error) {
-        console.error('Admin booking email failed after S3 save.', error.message);
-        return respond(response, 502, { error: 'Booking was saved to S3, but its email to the admin could not be sent. Please contact the studio before submitting again.' });
-      }
-    }
-    return respond(response, 200, { ok: true, bookingId: booking.id, createdAt: booking.createdAt, storageUri, adminEmailSent: SEND_BOOKING_EMAILS });
+    return respond(response, 200, { ok: true, bookingId: booking.id, createdAt: booking.createdAt, adminEmailSent: true });
   } catch (error) {
     return respond(response, error.status || 500, { error: error.status ? error.message : 'We could not process your booking. Please try again.' });
   }
 });
 
-server.listen(PORT, '127.0.0.1', () => console.log(`Booking API listening at http://127.0.0.1:${PORT} (AWS S3 ${AWS_REGION})`));
+server.listen(PORT, '127.0.0.1', () => console.log(`Booking API listening at http://127.0.0.1:${PORT} (Amazon SES ${AWS_REGION})`));

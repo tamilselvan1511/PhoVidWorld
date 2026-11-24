@@ -59,13 +59,13 @@ function App() {
         body: JSON.stringify(form),
       });
       const result = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(result.error || 'We could not save your booking. Please try again.');
+      if (!response.ok) throw new Error(result.error || 'We could not email your booking to the studio. Please try again.');
       const booking = { ...form, id: result.bookingId, status: 'Pending', createdAt: result.createdAt || new Date().toISOString() };
       setLatest(booking);
       try { localStorage.setItem(storageKey, JSON.stringify([booking, ...readBookings()])); } catch { /* email delivery should still succeed without browser storage */ }
       setForm(emptyForm);
     } catch (error) {
-      setFormMessage(error instanceof Error ? error.message : 'Your booking could not be saved. Please try again or contact the studio.');
+      setFormMessage(error instanceof Error ? error.message : 'Your booking could not be sent. Please try again or contact the studio.');
     } finally {
       setSubmitting(false);
     }
@@ -161,7 +161,7 @@ function App() {
 
       <footer><strong>PHOTOGRAPHY BOOKING</strong><span>Capturing the moments that matter · © {new Date().getFullYear()}</span></footer>
 
-      {latest && <div className="modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setLatest(null); }}><section className="success-modal" role="dialog" aria-modal="true" aria-labelledby="successTitle"><div className="success-check">✓</div><p className="eyebrow">Request received</p><h2 id="successTitle">Thank you for booking!</h2><p className="muted">Your booking request has been saved. Our studio will contact you to confirm availability.</p><div className="modal-details"><strong>Your photography session</strong><span><b>Name:</b> {latest.customer}</span><span><b>Email:</b> {latest.email}</span><span><b>Service:</b> {latest.service}</span><span><b>Date:</b> {latest.date} · {latest.time}</span><span><b>Location:</b> {latest.location}</span><span><b>Booking ID:</b> {latest.id}</span></div><div className="modal-actions"><button className="button secondary-dark" onClick={() => setLatest(null)}>Done</button></div></section></div>}
+      {latest && <div className="modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setLatest(null); }}><section className="success-modal" role="dialog" aria-modal="true" aria-labelledby="successTitle"><div className="success-check">✓</div><p className="eyebrow">Request received</p><h2 id="successTitle">Thank you for booking!</h2><p className="muted">Your booking request was sent to our studio. We will contact you to confirm availability.</p><div className="modal-details"><strong>Your photography session</strong><span><b>Name:</b> {latest.customer}</span><span><b>Email:</b> {latest.email}</span><span><b>Service:</b> {latest.service}</span><span><b>Date:</b> {latest.date} · {latest.time}</span><span><b>Location:</b> {latest.location}</span><span><b>Booking ID:</b> {latest.id}</span></div><div className="modal-actions"><button className="button secondary-dark" onClick={() => setLatest(null)}>Done</button></div></section></div>}
     </>
   );
 }
