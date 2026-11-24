@@ -1,5 +1,6 @@
 import { createServer } from 'node:http';
 import { createHash, createHmac } from 'node:crypto';
+import ExcelJS from 'exceljs';
 
 const PORT = Number(process.env.API_PORT || 3001);
 const ADMIN_EMAIL = process.env.ADMIN_EMAIL || 'premierprism01@gmail.com';
@@ -75,91 +76,37 @@ function hmac(key, value, encoding) {
   return createHmac('sha256', key).update(value).digest(encoding);
 }
 
-function crc32(buffer) {
-  let crc = 0xffffffff;
-  for (const byte of buffer) {
-    crc ^= byte;
-    for (let bit = 0; bit < 8; bit += 1) crc = (crc >>> 1) ^ (crc & 1 ? 0xedb88320 : 0);
-  }
-  return (crc ^ 0xffffffff) >>> 0;
-}
+const bookingColumns = [
+  { header: 'Booking ID', key: 'id', width: 18 },
+  { header: 'Created At', key: 'createdAt', width: 25 },
+  { header: 'Customer Name', key: 'customer', width: 24 },
+  { header: 'Email', key: 'email', width: 32 },
+  { header: 'Mobile', key: 'phone', width: 20 },
+  { header: 'Service', key: 'service', width: 28 },
+  { header: 'Preferred Date', key: 'date', width: 18 },
+  { header: 'Time', key: 'time', width: 16 },
+  { header: 'Location', key: 'location', width: 32 },
+  { header: 'Notes', key: 'notes', width: 42 },
+  { header: 'Status', key: 'status', width: 16 },
+];
+const bookingQueues = new Map();
 
-function makeDocx(booking) {
-  const xmlEscape = (value) => String(value).replace(/[&<>"']/g, (character) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&apos;' })[character]);
-  const paragraphs = [
-    'Photography Booking Details',
-    ...summaryLines(booking).map(([label, value]) => `${label}: ${value || 'Not provided'}`),
-    `Status: ${booking.status}`,
-    `Created: ${booking.createdAt}`,
-  ].map((line) => `<w:p><w:r><w:t xml:space="preserve">${xmlEscape(line)}</w:t></w:r></w:p>`).join('');
-  const files = [
-    ['[Content_Types].xml', '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/></Types>'],
-    ['_rels/.rels', '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/></Relationships>'],
-    ['word/document.xml', `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body>${paragraphs}<w:sectPr><w:pgSz w:w="12240" w:h="15840"/><w:pgMar w:top="1440" w:right="1440" w:bottom="1440" w:left="1440"/></w:sectPr></w:body></w:document>`],
-  ];
-  const localParts = [];
-  const centralParts = [];
-  let offset = 0;
-  for (const [name, contents] of files) {
-    const nameBytes = Buffer.from(name, 'utf8');
-    const data = Buffer.from(contents, 'utf8');
-    const checksum = crc32(data);
-    const local = Buffer.alloc(30);
-    local.writeUInt32LE(0x04034b50, 0);
-    local.writeUInt16LE(20, 4);
-    local.writeUInt16LE(0x0800, 6);
-    local.writeUInt16LE(0, 8);
-    local.writeUInt32LE(checksum, 14);
-    local.writeUInt32LE(data.length, 18);
-    local.writeUInt32LE(data.length, 22);
-    local.writeUInt16LE(nameBytes.length, 26);
-    localParts.push(local, nameBytes, data);
-    const central = Buffer.alloc(46);
-    central.writeUInt32LE(0x02014b50, 0);
-    central.writeUInt16LE(20, 4);
-    central.writeUInt16LE(20, 6);
-    central.writeUInt16LE(0x0800, 8);
-    central.writeUInt16LE(0, 10);
-    central.writeUInt32LE(checksum, 16);
-    central.writeUInt32LE(data.length, 20);
-    central.writeUInt32LE(data.length, 24);
-    central.writeUInt16LE(nameBytes.length, 28);
-    central.writeUInt32LE(offset, 42);
-    centralParts.push(central, nameBytes);
-    offset += local.length + nameBytes.length + data.length;
-  }
-  const centralDirectory = Buffer.concat(centralParts);
-  const end = Buffer.alloc(22);
-  end.writeUInt32LE(0x06054b50, 0);
-  end.writeUInt16LE(files.length, 8);
-  end.writeUInt16LE(files.length, 10);
-  end.writeUInt32LE(centralDirectory.length, 12);
-  end.writeUInt32LE(offset, 16);
-  return Buffer.concat([...localParts, centralDirectory, end]);
-}
-
-async function storeBooking(booking) {
+async function s3Request(method, key, payload) {
   const accessKey = process.env.AWS_ACCESS_KEY_ID;
   const secretKey = process.env.AWS_SECRET_ACCESS_KEY;
   const sessionToken = process.env.AWS_SESSION_TOKEN;
-  const key = `${booking.email.toLowerCase()}.docx`;
   const path = `/${key.split('/').map(encodeURIComponent).join('/')}`;
   const host = `${S3_BUCKET}.s3.${AWS_REGION}.amazonaws.com`;
-  const payload = makeDocx(booking);
-  const bodyHash = sha256(payload);
+  const bodyHash = sha256(payload || '');
   const now = new Date().toISOString().replace(/[:-]|\.\d{3}/g, '');
   const date = now.slice(0, 8);
-  const headers = {
-    'content-type': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-    host,
-    'x-amz-content-sha256': bodyHash,
-    'x-amz-date': now,
-  };
+  const headers = { host, 'x-amz-content-sha256': bodyHash, 'x-amz-date': now };
+  if (payload) headers['content-type'] = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
   if (sessionToken) headers['x-amz-security-token'] = sessionToken;
   const signedHeaderNames = Object.keys(headers).sort();
   const canonicalHeaders = signedHeaderNames.map((name) => `${name}:${headers[name].trim()}\n`).join('');
   const signedHeaders = signedHeaderNames.join(';');
-  const canonicalRequest = ['PUT', path, '', canonicalHeaders, signedHeaders, bodyHash].join('\n');
+  const canonicalRequest = [method, path, '', canonicalHeaders, signedHeaders, bodyHash].join('\n');
   const scope = `${date}/${AWS_REGION}/s3/aws4_request`;
   const stringToSign = ['AWS4-HMAC-SHA256', now, scope, sha256(canonicalRequest)].join('\n');
   const dateKey = hmac(`AWS4${secretKey}`, date);
@@ -168,16 +115,53 @@ async function storeBooking(booking) {
   const signingKey = hmac(serviceKey, 'aws4_request');
   const signature = hmac(signingKey, stringToSign, 'hex');
   const authorization = `AWS4-HMAC-SHA256 Credential=${accessKey}/${scope}, SignedHeaders=${signedHeaders}, Signature=${signature}`;
-  const result = await fetch(`https://${host}${path}`, {
-    method: 'PUT',
+  return fetch(`https://${host}${path}`, {
+    method,
     headers: { ...headers, Authorization: authorization },
-    body: payload,
+    ...(payload ? { body: payload } : {}),
   });
-  if (!result.ok) {
-    const detail = await result.text();
-    throw new Error(`Amazon S3 returned ${result.status}: ${detail.slice(0, 400)}`);
+}
+
+async function saveCustomerWorkbook(booking, email) {
+  const key = `${email}.xlsx`;
+  const readResult = await s3Request('GET', key);
+  let workbook = new ExcelJS.Workbook();
+  if (readResult.ok) {
+    await workbook.xlsx.load(Buffer.from(await readResult.arrayBuffer()));
+  } else if (readResult.status !== 404) {
+    const detail = await readResult.text();
+    throw new Error(`Amazon S3 could not read the workbook (${readResult.status}): ${detail.slice(0, 400)}`);
+  }
+  let sheet = workbook.getWorksheet('Bookings');
+  if (!sheet) sheet = workbook.addWorksheet('Bookings');
+  if (sheet.rowCount === 0) {
+    sheet.columns = bookingColumns;
+    sheet.views = [{ state: 'frozen', ySplit: 1 }];
+    sheet.autoFilter = 'A1:K1';
+    const header = sheet.getRow(1);
+    header.font = { bold: true, color: { argb: 'FFFFFFFF' } };
+    header.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF29362E' } };
+  }
+  sheet.addRow(booking);
+  const payload = Buffer.from(await workbook.xlsx.writeBuffer());
+  const writeResult = await s3Request('PUT', key, payload);
+  if (!writeResult.ok) {
+    const detail = await writeResult.text();
+    throw new Error(`Amazon S3 could not save the workbook (${writeResult.status}): ${detail.slice(0, 400)}`);
   }
   return `s3://${S3_BUCKET}/${key}`;
+}
+
+async function storeBooking(booking) {
+  const email = booking.email.toLowerCase();
+  const previous = bookingQueues.get(email) || Promise.resolve();
+  const current = previous.catch(() => {}).then(() => saveCustomerWorkbook(booking, email));
+  bookingQueues.set(email, current);
+  try {
+    return await current;
+  } finally {
+    if (bookingQueues.get(email) === current) bookingQueues.delete(email);
+  }
 }
 
 async function sendEmail(to, subject, text, booking) {
@@ -244,7 +228,7 @@ const server = createServer(async (request, response) => {
       storageUri = await storeBooking(booking);
     } catch (error) {
       console.error('Booking S3 save failed.', error.message);
-      return respond(response, 502, { error: 'Booking could not be saved to S3. Check the bucket name, bucket region, and s3:PutObject permission.' });
+      return respond(response, 502, { error: 'Booking could not be saved to S3. Check the bucket name, bucket region, and s3:ListBucket, s3:GetObject, and s3:PutObject permissions.' });
     }
     if (SEND_BOOKING_EMAILS) {
       const summary = ['YOUR PHOTOGRAPHY SESSION', ...summaryLines(booking).map(([label, value]) => `${label.toUpperCase()}: ${value}`)].join('\n');

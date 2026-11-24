@@ -6,7 +6,7 @@ A React booking site with a Node.js API. Booking requests are emailed to the stu
 
 The sender identity is `premierprism01@gmail.com` in the AWS Seoul region (`ap-northeast-2`). It must show **Verified** in SES before the API can send mail.
 
-1. In IAM, create an access key for a dedicated application user. Give it permission to call `ses:SendEmail` on the SES identity ARN shown on the verified sender's identity page in the console.
+1. In IAM, create an access key for a dedicated application user. Give it `s3:ListBucket` on the bucket ARN, `s3:GetObject` and `s3:PutObject` on the bucket's object ARNs, and `ses:SendEmail` on the SES identity ARN if mail is enabled.
 
    Do not use or share root account keys. Keep the secret access key private.
 
@@ -38,6 +38,6 @@ Create a production frontend build with `npm run build`.
 ## App behavior and deployment
 
 - The React app renders the home page, photography services, booking form and confirmation dialog.
-- The API stores each validated booking as a Word document in `s3://<S3_BUCKET>/bookings/<customer-email>.docx`. The document contains the booking details, `id`, `status` and `createdAt`. A later booking from the same email overwrites that object. Browser `localStorage` is only a convenience copy.
+- The API stores customer bookings in `s3://<S3_BUCKET>/<customer-email>.xlsx`, appending each booking as a row in that customer's `Bookings` worksheet. The workbook contains booking details, `id`, `status` and `createdAt`. Browser `localStorage` is only a convenience copy.
 - The API validates bookings, applies a small per-IP request limit, and sends two formatted SES messages.
-- The API's IAM identity needs `s3:PutObject` on `arn:aws:s3:::<S3_BUCKET>/*` and `ses:SendEmail` for the sender identity. For deployment, run the Node API behind the frontend and provide AWS credentials through the hosting platform's secret settings or an attached IAM role. Do not commit `.env` or AWS keys.
+- The API needs `s3:ListBucket` on `arn:aws:s3:::<S3_BUCKET>`, and `s3:GetObject` plus `s3:PutObject` on `arn:aws:s3:::<S3_BUCKET>/*` to append customer bookings. This implementation reads AWS access credentials from environment variables, so pass them into the Docker container through its environment file or secrets. Rebuild and recreate the Docker container after updating the app so the `exceljs` dependency and code changes are included. Do not commit `.env` or AWS keys.
