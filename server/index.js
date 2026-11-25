@@ -77,7 +77,10 @@ function formatBookingDate(value) {
 
 function bookingSummary(booking) {
   return [
-    'PHOVIDWORLD - BOOKING REPORT',
+    'PHOVIDWORLD | PRIVATE BOOKING REPORT',
+    '',
+    'Thank you for choosing PhoVidWorld. Your session request details are below.',
+    '',
     `Booking ID: ${booking.id}`,
     `Customer Name: ${booking.customer}`,
     `Email: ${booking.email}`,
@@ -86,15 +89,15 @@ function bookingSummary(booking) {
     `Event Date: ${formatBookingDate(booking.date)}`,
     `Time Slot: ${booking.time}`,
     `Event Location: ${booking.location}`,
-    `Booking Status: ${booking.status === 'Pending' ? 'New Booking - Awaiting Studio Confirmation' : booking.status}`,
-    `Additional Details: ${booking.notes || 'Not provided'}`,
+    `Booking Status: ${booking.status === 'Pending' ? 'Request received - awaiting studio confirmation' : booking.status}`,
+    `Special Requests & Event Details: ${booking.notes || 'None provided'}`,
   ].join('\n');
 }
 
 function bookingReportHtml(booking, title) {
   const cell = (label, value) => `<td style="width:50%;padding:10px 12px;vertical-align:top"><div style="font:12px Arial,sans-serif;color:#666;text-transform:uppercase;margin-bottom:5px">${label}</div><div style="font:600 16px Arial,sans-serif;color:#171717;line-height:1.45;white-space:pre-wrap;word-break:break-word">${escapeHtml(value)}</div></td>`;
-  const reportStatus = booking.status === 'Pending' ? 'New Booking - Awaiting Studio Confirmation' : booking.status;
-  return `<div style="margin:0;background:#f5f6f8;padding:16px;font-family:Arial,sans-serif;color:#171717"><table role="presentation" style="width:100%;max-width:820px;margin:0 auto;border:1px solid #e1e4e8;border-spacing:0;background:#fff"><tr><td style="padding:14px"><table role="presentation" style="width:100%;border-spacing:0;background:#192f50;border-radius:9px;color:#fff"><tr><td style="padding:18px 14px"><div style="font:bold 21px Arial,sans-serif;letter-spacing:.2px">PhoVidWorld</div><div style="margin-top:7px;color:#e3c28e;font:bold 14px Arial,sans-serif">PHOTOGRAPHY SERVICES</div><div style="margin-top:13px;font:bold 19px Arial,sans-serif">${title}</div><div style="margin-top:9px;font:13px Arial,sans-serif">BOOKING ID: ${escapeHtml(booking.id)}</div></td></tr></table><table role="presentation" style="width:100%;border-spacing:0;margin-top:8px"><tr>${cell('Customer Name', booking.customer)}${cell('Service', booking.service)}</tr><tr>${cell('Email Address', booking.email)}${cell('Mobile Number', booking.phone)}</tr><tr>${cell('Event Date', formatBookingDate(booking.date))}${cell('Time Slot', booking.time)}</tr><tr>${cell('Location', booking.location)}${cell('Booking Status', reportStatus)}</tr><tr>${cell('Additional Details', booking.notes || 'Not provided')}${cell('Request Received', new Date(booking.createdAt).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'Asia/Kolkata' }))}</tr></table><div style="padding:8px 12px 4px;font:12px Arial,sans-serif;color:#666">${booking.status === 'Pending' ? 'This request is awaiting studio confirmation.' : ''}</div></td></tr></table></div>`;
+  const reportStatus = booking.status === 'Pending' ? 'Request received · awaiting studio confirmation' : booking.status;
+  return `<div style="margin:0;background:#f5f6f8;padding:16px;font-family:Arial,sans-serif;color:#171717"><table role="presentation" style="width:100%;max-width:820px;margin:0 auto;border:1px solid #e1e4e8;border-spacing:0;background:#fff"><tr><td style="padding:14px"><table role="presentation" style="width:100%;border-spacing:0;background:#192f50;border-radius:9px;color:#fff"><tr><td style="padding:20px 16px"><div style="font:bold 23px Arial,sans-serif;letter-spacing:.3px">PhoVidWorld</div><div style="margin-top:7px;color:#e3c28e;font:bold 13px Arial,sans-serif;letter-spacing:1px">PHOTOGRAPHY · FILMS · TIMELESS STORIES</div><div style="margin-top:16px;font:bold 19px Arial,sans-serif;letter-spacing:.3px">${title}</div><div style="margin-top:9px;font:13px Arial,sans-serif;color:#e7edf6">BOOKING ID: ${escapeHtml(booking.id)}</div></td></tr></table><table role="presentation" style="width:100%;border-spacing:0;margin-top:8px"><tr>${cell('Customer Name', booking.customer)}${cell('Photography Service', booking.service)}</tr><tr>${cell('Email Address', booking.email)}${cell('Contact Number', booking.phone)}</tr><tr>${cell('Event Date', formatBookingDate(booking.date))}${cell('Preferred Time', booking.time)}</tr><tr>${cell('Event Location', booking.location)}${cell('Request Status', reportStatus)}</tr><tr>${cell('Special Requests & Event Details', booking.notes || 'None provided')}${cell('Received On', new Date(booking.createdAt).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'Asia/Kolkata' }))}</tr></table><div style="padding:8px 12px 4px;font:12px Arial,sans-serif;color:#666">${booking.status === 'Pending' ? 'Our studio team will be in touch to confirm availability.' : ''}</div></td></tr></table></div>`;
 }
 
 async function sendAdminBookingEmail(transporter, booking) {
@@ -102,7 +105,7 @@ async function sendAdminBookingEmail(transporter, booking) {
     from: { name: 'PhoVidWorld', address: GMAIL_USER },
     to: ADMIN_EMAIL,
     replyTo: booking.email,
-    subject: `New PhoVidWorld Booking - ${booking.service}`,
+    subject: `New booking enquiry | PhoVidWorld | ${booking.service}`,
     text: bookingSummary(booking),
     html: bookingReportHtml(booking, 'NEW BOOKING REPORT'),
   });
@@ -113,17 +116,21 @@ async function sendCustomerConfirmationEmail(transporter, booking) {
     from: { name: 'PhoVidWorld', address: GMAIL_USER },
     to: booking.email,
     replyTo: ADMIN_EMAIL,
-    subject: `PhoVidWorld Booking Confirmation Report - ${booking.service}`,
+    subject: `Your booking request | PhoVidWorld | ${booking.service}`,
     text: [
-      `Hi ${booking.customer},`,
+      `Dear ${booking.customer},`,
       '',
-      'Thank you for contacting Photography Booking Studio. We received your request and will contact you to confirm availability.',
+      'Thank you for choosing PhoVidWorld. We are delighted that you are considering us for your special occasion.',
+      'Your photography session request has been received. Our studio team will review the details and contact you to confirm availability.',
       '',
       bookingSummary(booking),
       '',
-      'This is an acknowledgement only; your session is not confirmed until our studio contacts you.',
+      'Please note: this message acknowledges receipt of your request. Your session will be confirmed once our studio team contacts you.',
+      '',
+      'Warm regards,',
+      'PhoVidWorld Studio',
     ].join('\n'),
-    html: `<p style="font:15px Arial,sans-serif;color:#222">Hi ${escapeHtml(booking.customer)},<br><br>Thank you for your booking request. Here is a copy of the details you submitted.</p>${bookingReportHtml(booking, 'BOOKING CONFIRMATION REPORT')}<p style="font:13px Arial,sans-serif;color:#555;text-align:center">Your session is not confirmed until our studio contacts you.</p>`,
+    html: `<div style="max-width:820px;margin:0 auto;padding:8px 16px;font:15px/1.6 Arial,sans-serif;color:#263244"><p>Dear ${escapeHtml(booking.customer)},</p><p>Thank you for choosing <strong>PhoVidWorld</strong>. We are delighted that you are considering us for your special occasion. Our studio team will review your request and contact you to confirm availability.</p></div>${bookingReportHtml(booking, 'BOOKING CONFIRMATION REPORT')}<div style="max-width:820px;margin:0 auto;padding:4px 16px 12px;font:13px/1.6 Arial,sans-serif;color:#555"><p>Please note: this email confirms receipt of your request; your session is confirmed once our studio team contacts you.</p><p>Warm regards,<br><strong>PhoVidWorld Studio</strong></p></div>`,
   });
 }
 
