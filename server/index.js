@@ -62,38 +62,58 @@ function createMailer() {
   });
 }
 
+function escapeHtml(value) {
+  return String(value).replace(/[&<>"']/g, (character) => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
+  })[character]);
+}
+
+function formatBookingDate(value) {
+  const [year, month, day] = value.split('-').map(Number);
+  return new Date(Date.UTC(year, month - 1, day)).toLocaleDateString('en-IN', {
+    day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC',
+  });
+}
+
 function bookingSummary(booking) {
   return [
-    'NEW PHOTOGRAPHY BOOKING',
+    'PHOVIDWORLD - BOOKING REPORT',
     `Booking ID: ${booking.id}`,
-    `Created: ${booking.createdAt}`,
-    `Name: ${booking.customer}`,
+    `Customer Name: ${booking.customer}`,
     `Email: ${booking.email}`,
-    `Mobile: ${booking.phone}`,
+    `Mobile Number: ${booking.phone}`,
     `Service: ${booking.service}`,
-    `Date: ${booking.date}`,
-    `Time: ${booking.time}`,
-    `Location: ${booking.location}`,
-    `Notes: ${booking.notes || 'Not provided'}`,
+    `Event Date: ${formatBookingDate(booking.date)}`,
+    `Time Slot: ${booking.time}`,
+    `Event Location: ${booking.location}`,
+    `Booking Status: ${booking.status === 'Pending' ? 'New Booking - Awaiting Studio Confirmation' : booking.status}`,
+    `Additional Details: ${booking.notes || 'Not provided'}`,
   ].join('\n');
+}
+
+function bookingReportHtml(booking, title) {
+  const cell = (label, value) => `<td style="width:50%;padding:10px 12px;vertical-align:top"><div style="font:12px Arial,sans-serif;color:#666;text-transform:uppercase;margin-bottom:5px">${label}</div><div style="font:600 16px Arial,sans-serif;color:#171717;line-height:1.45;white-space:pre-wrap;word-break:break-word">${escapeHtml(value)}</div></td>`;
+  const reportStatus = booking.status === 'Pending' ? 'New Booking - Awaiting Studio Confirmation' : booking.status;
+  return `<div style="margin:0;background:#f5f6f8;padding:16px;font-family:Arial,sans-serif;color:#171717"><table role="presentation" style="width:100%;max-width:820px;margin:0 auto;border:1px solid #e1e4e8;border-spacing:0;background:#fff"><tr><td style="padding:14px"><table role="presentation" style="width:100%;border-spacing:0;background:#192f50;border-radius:9px;color:#fff"><tr><td style="padding:18px 14px"><div style="font:bold 21px Arial,sans-serif;letter-spacing:.2px">PhoVidWorld</div><div style="margin-top:7px;color:#e3c28e;font:bold 14px Arial,sans-serif">PHOTOGRAPHY SERVICES</div><div style="margin-top:13px;font:bold 19px Arial,sans-serif">${title}</div><div style="margin-top:9px;font:13px Arial,sans-serif">BOOKING ID: ${escapeHtml(booking.id)}</div></td></tr></table><table role="presentation" style="width:100%;border-spacing:0;margin-top:8px"><tr>${cell('Customer Name', booking.customer)}${cell('Service', booking.service)}</tr><tr>${cell('Email Address', booking.email)}${cell('Mobile Number', booking.phone)}</tr><tr>${cell('Event Date', formatBookingDate(booking.date))}${cell('Time Slot', booking.time)}</tr><tr>${cell('Location', booking.location)}${cell('Booking Status', reportStatus)}</tr><tr>${cell('Additional Details', booking.notes || 'Not provided')}${cell('Request Received', new Date(booking.createdAt).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'Asia/Kolkata' }))}</tr></table><div style="padding:8px 12px 4px;font:12px Arial,sans-serif;color:#666">${booking.status === 'Pending' ? 'This request is awaiting studio confirmation.' : ''}</div></td></tr></table></div>`;
 }
 
 async function sendAdminBookingEmail(transporter, booking) {
   await transporter.sendMail({
-    from: { name: 'Photography Booking Studio', address: GMAIL_USER },
+    from: { name: 'PhoVidWorld', address: GMAIL_USER },
     to: ADMIN_EMAIL,
     replyTo: booking.email,
-    subject: `New Photography Booking - ${booking.service}`,
+    subject: `New PhoVidWorld Booking - ${booking.service}`,
     text: bookingSummary(booking),
+    html: bookingReportHtml(booking, 'NEW BOOKING REPORT'),
   });
 }
 
 async function sendCustomerConfirmationEmail(transporter, booking) {
   await transporter.sendMail({
-    from: { name: 'Photography Booking Studio', address: GMAIL_USER },
+    from: { name: 'PhoVidWorld', address: GMAIL_USER },
     to: booking.email,
     replyTo: ADMIN_EMAIL,
-    subject: `We received your photography booking request - ${booking.service}`,
+    subject: `PhoVidWorld Booking Confirmation Report - ${booking.service}`,
     text: [
       `Hi ${booking.customer},`,
       '',
@@ -103,6 +123,7 @@ async function sendCustomerConfirmationEmail(transporter, booking) {
       '',
       'This is an acknowledgement only; your session is not confirmed until our studio contacts you.',
     ].join('\n'),
+    html: `<p style="font:15px Arial,sans-serif;color:#222">Hi ${escapeHtml(booking.customer)},<br><br>Thank you for your booking request. Here is a copy of the details you submitted.</p>${bookingReportHtml(booking, 'BOOKING CONFIRMATION REPORT')}<p style="font:13px Arial,sans-serif;color:#555;text-align:center">Your session is not confirmed until our studio contacts you.</p>`,
   });
 }
 
