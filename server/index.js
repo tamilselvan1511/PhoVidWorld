@@ -52,8 +52,18 @@ function validateBooking(body) {
   return null;
 }
 
-async function sendAdminBookingEmail(booking) {
-  const summary = [
+function createMailer() {
+  if (!GMAIL_USER || !GMAIL_APP_PASSWORD || !ADMIN_EMAIL) {
+    throw new Error('Set GMAIL_USER, GMAIL_APP_PASSWORD, and ADMIN_EMAIL in the API environment.');
+  }
+  return nodemailer.createTransport({
+    service: 'gmail',
+    auth: { user: GMAIL_USER, pass: GMAIL_APP_PASSWORD },
+  });
+}
+
+function bookingSummary(booking) {
+  return [
     'NEW PHOTOGRAPHY BOOKING',
     `Booking ID: ${booking.id}`,
     `Created: ${booking.createdAt}`,
@@ -66,19 +76,33 @@ async function sendAdminBookingEmail(booking) {
     `Location: ${booking.location}`,
     `Notes: ${booking.notes || 'Not provided'}`,
   ].join('\n');
-  if (!GMAIL_USER || !GMAIL_APP_PASSWORD || !ADMIN_EMAIL) {
-    throw new Error('Set GMAIL_USER, GMAIL_APP_PASSWORD, and ADMIN_EMAIL in the API environment.');
-  }
-  const transporter = nodemailer.createTransport({
-    service: 'gmail',
-    auth: { user: GMAIL_USER, pass: GMAIL_APP_PASSWORD },
-  });
+}
+
+async function sendAdminBookingEmail(transporter, booking) {
   await transporter.sendMail({
     from: { name: 'Photography Booking Studio', address: GMAIL_USER },
     to: ADMIN_EMAIL,
     replyTo: booking.email,
     subject: `New Photography Booking - ${booking.service}`,
-    text: summary,
+    text: bookingSummary(booking),
+  });
+}
+
+async function sendCustomerConfirmationEmail(transporter, booking) {
+  await transporter.sendMail({
+    from: { name: 'Photography Booking Studio', address: GMAIL_USER },
+    to: booking.email,
+    replyTo: ADMIN_EMAIL,
+    subject: `We received your photography booking request - ${booking.service}`,
+    text: [
+      `Hi ${booking.customer},`,
+      '',
+      'Thank you for contacting Photography Booking Studio. We received your request and will contact you to confirm availability.',
+      '',
+      bookingSummary(booking),
+      '',
+      'This is an acknowledgement only; your session is not confirmed until our studio contacts you.',
+    ].join('\n'),
   });
 }
 
@@ -94,13 +118,21 @@ const server = createServer(async (request, response) => {
     const validationMessage = validateBooking(body);
     if (validationMessage) return respond(response, 400, { error: validationMessage });
     const booking = { customer: body.customer.trim(), email: body.email.trim(), phone: body.phone.trim(), service: body.service, date: body.date, time: body.time, location: body.location.trim(), notes: (body.notes || '').trim(), id: `PB-${Date.now().toString().slice(-7)}`, status: 'Pending', createdAt: new Date().toISOString() };
+    const transporter = createMailer();
     try {
-      await sendAdminBookingEmail(booking);
+      await sendAdminBookingEmail(transporter, booking);
     } catch (error) {
       console.error('Admin booking email failed.', error.name, error.message);
       return respond(response, 502, { error: 'We could not send your booking request to the studio. Please try again or contact the studio directly.' });
     }
-    return respond(response, 200, { ok: true, bookingId: booking.id, createdAt: booking.createdAt, adminEmailSent: true });
+    let customerEmailSent = true;
+    try {
+      await sendCustomerConfirmationEmail(transporter, booking);
+    } catch (error) {
+      customerEmailSent = false;
+      console.error('Customer booking confirmation email failed.', error.name, error.message);
+    }
+    return respond(response, 200, { ok: true, bookingId: booking.id, createdAt: booking.createdAt, adminEmailSent: true, customerEmailSent });
   } catch (error) {
     return respond(response, error.status || 500, { error: error.status ? error.message : 'We could not process your booking. Please try again.' });
   }

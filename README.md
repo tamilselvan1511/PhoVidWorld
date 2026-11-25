@@ -28,8 +28,8 @@ Create a production frontend build with `npm run build`.
 ## App behavior and deployment
 
 - The React app renders the home page, photography services, booking form and confirmation dialog.
-- The API validates each booking, applies a small per-IP request limit, and emails the booking details only to the studio admin. It does not persist bookings on the server; browser `localStorage` is only a convenience copy.
-- The API sends each booking only to `ADMIN_EMAIL` through Gmail SMTP; replies go to the customer's booking email. The production Docker Compose setup runs a Node API service behind Nginx; the `.env` file is passed to the API container. Do not commit `.env` or App Passwords.
+- The API validates each booking, applies a small per-IP request limit, emails booking details to the studio admin, and sends an acknowledgement to the email address entered on the form. Customer email delivery failure is logged without losing an admin-received booking. It does not persist bookings on the server; browser `localStorage` is only a convenience copy.
+- Admin notifications go to `ADMIN_EMAIL` through Gmail SMTP; replies go to the customer's booking email. Customer acknowledgements come from `GMAIL_USER` and replies go to `ADMIN_EMAIL`. The production Docker Compose setup runs a Node API service behind Nginx; the `.env` file is passed to the API container. Do not commit `.env` or App Passwords.
 
 ## Deploy with Docker Compose
 
