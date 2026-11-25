@@ -1,11 +1,10 @@
 import { createServer } from 'node:http';
-import { SESv2Client, SendEmailCommand } from '@aws-sdk/client-sesv2';
+import nodemailer from 'nodemailer';
 
 const PORT = Number(process.env.API_PORT || 3001);
-const AWS_REGION = process.env.AWS_REGION || 'ap-northeast-2';
-const ADMIN_EMAIL = process.env.ADMIN_EMAIL || 'premierprism01@gmail.com';
-const SES_FROM_EMAIL = process.env.SES_FROM_EMAIL || 'premierprism01@gmail.com';
-const sesClient = new SESv2Client({ region: AWS_REGION });
+const GMAIL_USER = process.env.GMAIL_USER;
+const GMAIL_APP_PASSWORD = process.env.GMAIL_APP_PASSWORD?.replace(/\s/g, '');
+const ADMIN_EMAIL = process.env.ADMIN_EMAIL || GMAIL_USER;
 const allowedServices = new Set([
   'Wedding Photography', 'Birthday Photography', 'Engagement Photography', 'Baby Photography',
   'Events Photography', 'Pre-Wedding Photography', 'Candid Photography', 'Outdoor Photoshoot',
@@ -67,15 +66,20 @@ async function sendAdminBookingEmail(booking) {
     `Location: ${booking.location}`,
     `Notes: ${booking.notes || 'Not provided'}`,
   ].join('\n');
-  const payload = {
-    FromEmailAddress: `Photography Booking Studio <${SES_FROM_EMAIL}>`,
-    Destination: { ToAddresses: [ADMIN_EMAIL] },
-    Content: { Simple: {
-      Subject: { Data: `New Photography Booking - ${booking.service}`, Charset: 'UTF-8' },
-      Body: { Text: { Data: summary, Charset: 'UTF-8' } },
-    } },
-  };
-  await sesClient.send(new SendEmailCommand(payload));
+  if (!GMAIL_USER || !GMAIL_APP_PASSWORD || !ADMIN_EMAIL) {
+    throw new Error('Set GMAIL_USER, GMAIL_APP_PASSWORD, and ADMIN_EMAIL in the API environment.');
+  }
+  const transporter = nodemailer.createTransport({
+    service: 'gmail',
+    auth: { user: GMAIL_USER, pass: GMAIL_APP_PASSWORD },
+  });
+  await transporter.sendMail({
+    from: { name: 'Photography Booking Studio', address: GMAIL_USER },
+    to: ADMIN_EMAIL,
+    replyTo: booking.email,
+    subject: `New Photography Booking - ${booking.service}`,
+    text: summary,
+  });
 }
 
 const server = createServer(async (request, response) => {
@@ -102,4 +106,4 @@ const server = createServer(async (request, response) => {
   }
 });
 
-server.listen(PORT, '0.0.0.0', () => console.log(`Booking API listening on port ${PORT} (Amazon SES ${AWS_REGION})`));
+server.listen(PORT, '0.0.0.0', () => console.log(`Booking API listening on port ${PORT} (Gmail SMTP)`));

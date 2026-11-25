@@ -1,14 +1,13 @@
 # Photography Booking App
 
-A React booking site with a Node.js API. Booking requests are emailed to the studio admin through Amazon SES and shown to the customer in the site's confirmation dialog.
+A React booking site with a Node.js API. Booking requests are emailed to the studio admin through Gmail SMTP and shown to the customer in the site's confirmation dialog.
 
-## Amazon SES setup
+## Gmail SMTP setup
 
-1. Verify `SES_FROM_EMAIL` in Amazon SES in the same region set by `AWS_REGION` (`ap-northeast-2`).
-2. Set `ADMIN_EMAIL` to the studio inbox. If SES is still in the sandbox, verify this recipient address in SES too.
-3. On EC2, attach an instance role with `ses:SendEmail` on the verified sender identity ARN. This API uses the EC2 role when access-key environment variables are absent. For Docker bridge networking, the EC2 metadata response hop limit should be at least `2` for IMDSv2.
-4. For local development only, copy `.env.example` to `.env` and add `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY` for a limited IAM user. Leave them unset on EC2 so the AWS SDK can use the instance role. Never use root keys or commit `.env`.
-5. Start the API with `npm run server`, then start the frontend with `npm run dev` in a second terminal.
+1. Turn on 2-Step Verification for the Gmail account that will send booking notices, then create an App Password for Mail. Use the App Password, not the account's regular password.
+2. Set `GMAIL_USER` and `GMAIL_APP_PASSWORD` to that sender account and App Password. Set `ADMIN_EMAIL` to the inbox that should receive booking details; it can be the same Gmail account.
+3. Copy `.env.example` to `.env` and keep those credentials private. Gmail may block SMTP connections it considers unusual, so check Google Account security alerts if sending fails.
+4. Start the API with `npm run server`, then start the frontend with `npm run dev` in a second terminal.
 
 ## Run locally
 
@@ -30,7 +29,7 @@ Create a production frontend build with `npm run build`.
 
 - The React app renders the home page, photography services, booking form and confirmation dialog.
 - The API validates each booking, applies a small per-IP request limit, and emails the booking details only to the studio admin. It does not persist bookings on the server; browser `localStorage` is only a convenience copy.
-- The API needs only `ses:SendEmail` on the verified sender identity to send bookings. The production Docker Compose setup runs a Node API service behind Nginx; the `.env` file is passed to the API container. Do not commit `.env` or AWS keys.
+- The API sends each booking only to `ADMIN_EMAIL` through Gmail SMTP; replies go to the customer's booking email. The production Docker Compose setup runs a Node API service behind Nginx; the `.env` file is passed to the API container. Do not commit `.env` or App Passwords.
 
 ## Deploy with Docker Compose
 
